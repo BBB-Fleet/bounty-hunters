@@ -9,26 +9,31 @@ on:
         required: false
         default: 'all'
 
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
 jobs:
   hunt:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: "\ud83d\udce5 Checkout"
+      - name: "Checkout"
         uses: actions/checkout@v4
 
-      - name: "\ud83d\udc0d Setup Python"
+      - name: "Setup Python"
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
 
-      - name: "\ud83d\udce6 Install Dependencies"
+      - name: "Install Dependencies"
         run: pip install -r requirements.txt
 
-      - name: "\ud83c\udff4\u200d\u2620\ufe0f Run Bounty Pipeline"
+      - name: "Run Bounty Pipeline"
         run: python -m agents.b2_10_boss
         env:
+          PYTHONPATH: .
           NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
           UPSTASH_REDIS_URL: ${{ secrets.UPSTASH_REDIS_URL }}
           UPSTASH_REDIS_TOKEN: ${{ secrets.UPSTASH_REDIS_TOKEN }}

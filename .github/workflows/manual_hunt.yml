@@ -16,6 +16,11 @@ on:
           - immunefi
           - all
 
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
 jobs:
   targeted_hunt:
     runs-on: ubuntu-latest
@@ -25,11 +30,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
       - run: pip install -r requirements.txt
-      - name: "\ud83c\udfaf Targeted Hunt"
+      - name: "Targeted Hunt"
         run: python -m agents.b2_10_boss
         env:
+          PYTHONPATH: .
           NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
           UPSTASH_REDIS_URL: ${{ secrets.UPSTASH_REDIS_URL }}
           UPSTASH_REDIS_TOKEN: ${{ secrets.UPSTASH_REDIS_TOKEN }}
