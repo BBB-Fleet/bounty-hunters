@@ -53,9 +53,9 @@ async def scan_algora() -> list:
 async def scan_github_bounties(token: str = None) -> list:
     """Search GitHub for issues labeled 'bounty'."""
     bounties = []
-    headers = {"Accept": "application/vnd.github+json"}
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
+    headers = {"Accept": "application/vnd.github+json", "User-Agent": "BBB-BountyHunters"}
+    if token and isinstance(token, str) and token.strip() and token != "None":
+        headers["Authorization"] = f"Bearer {token.strip()}"
     url = "https://api.github.com/search/issues?q=label:bounty+state:open+sort:created&per_page=10"
     data = await _fetch_json(url, headers)
     if data and "items" in data:

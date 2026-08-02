@@ -39,7 +39,7 @@ jobs:
           UPSTASH_REDIS_URL: ${{ secrets.UPSTASH_REDIS_URL }}
           UPSTASH_REDIS_TOKEN: ${{ secrets.UPSTASH_REDIS_TOKEN }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.FLEET_GITHUB_PAT || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SPLITS_VAULT: "0xc87c3e8CB21e5A630Baf8D38b2060aCBb047afCb"
           TARGET_PLATFORM: ${{ github.event.inputs.platform }}
           TARGET_BOUNTY_URL: ${{ github.event.inputs.bounty_url }}
