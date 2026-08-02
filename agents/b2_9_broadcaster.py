@@ -36,7 +36,7 @@ async def run(comms, context: dict = None) -> dict:
         f"Watchdog Audit:\n{payload.get('audit', '')[:500]}\n\n"
         f"Produce the complete, perfectly formatted Markdown submission payload."
     )
-    formatted_body = await query_llm(prompt)
+    formatted_body = await query_llm(prompt) or "Formatted Bounty Submission Payload."
 
     result = {
         "agent": AGENT_NAME,

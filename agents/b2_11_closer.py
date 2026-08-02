@@ -21,7 +21,7 @@ async def _fetch_json(url: str, headers: dict = None, timeout: int = 15) -> dict
         async with aiohttp.ClientSession() as session:
             async with session.get(url, headers=headers or {}, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
                 if resp.status == 200:
-                    return await resp.json()
+                    return await resp.json(content_type=None)
     except Exception as e:
         print(f"[{AGENT_NAME}] Fetch error {url}: {e}")
     return None
