@@ -1,4 +1,4 @@
-name: "\ud83c\udff4\u200d\u2620\ufe0f Bounty Pipeline"
+name: "Bounty Pipeline"
 on:
   schedule:
     - cron: '0 */3 * * *'   # Every 3 hours (8 hunts/day)
@@ -42,10 +42,10 @@ jobs:
           SPLITS_VAULT: "0xc87c3e8CB21e5A630Baf8D38b2060aCBb047afCb"
           TARGET_PLATFORM: ${{ github.event.inputs.target_platform || 'all' }}
 
-      - name: "\ud83d\udcca Pipeline Summary"
+      - name: "Pipeline Summary"
         if: always()
         run: |
-          echo "## \ud83c\udff4\u200d\u2620\ufe0f Bounty Pipeline Results" >> $GITHUB_STEP_SUMMARY
+          echo "## Bounty Pipeline Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **Run Time**: $(date -u)" >> $GITHUB_STEP_SUMMARY
           echo "- **Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
