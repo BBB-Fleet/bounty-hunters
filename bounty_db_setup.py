@@ -65,6 +65,40 @@ async def setup_db():
     """)
     print("Created bbb_fleet_handoff.")
     
+    print("Creating bounty_lifecycle_log table...")
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS bounty_lifecycle_log (
+            id SERIAL PRIMARY KEY,
+            bounty_id TEXT,
+            bounty_title TEXT,
+            platform TEXT,
+            payout_usd DECIMAL(12,2),
+            bounty_type TEXT,
+            assigned_specialists TEXT,
+            consensus_trials INT,
+            strategies_used TEXT,
+            status TEXT,
+            deciding_agent_id INT,
+            submission_payload TEXT,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        )
+    """)
+    print("Created bounty_lifecycle_log.")
+
+    print("Creating bounty_api_metrics table...")
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS bounty_api_metrics (
+            id SERIAL PRIMARY KEY,
+            api_key TEXT,
+            endpoint TEXT,
+            items_returned INT,
+            response_time_ms INT,
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+    """)
+    print("Created bounty_api_metrics.")
+
     await conn.close()
     print("Database setup complete.")
 

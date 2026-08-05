@@ -99,6 +99,34 @@ class AgentComms:
                 reviewed_at TIMESTAMP
             )
         """)
+        await self._pg_execute("""
+            CREATE TABLE IF NOT EXISTS bounty_lifecycle_log (
+                id SERIAL PRIMARY KEY,
+                bounty_id TEXT,
+                bounty_title TEXT,
+                platform TEXT,
+                payout_usd DECIMAL(12,2),
+                bounty_type TEXT,
+                assigned_specialists TEXT,
+                consensus_trials INT,
+                strategies_used TEXT,
+                status TEXT,
+                deciding_agent_id INT,
+                submission_payload TEXT,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        await self._pg_execute("""
+            CREATE TABLE IF NOT EXISTS bounty_api_metrics (
+                id SERIAL PRIMARY KEY,
+                api_key TEXT,
+                endpoint TEXT,
+                items_returned INT,
+                response_time_ms INT,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
 
     async def publish(self, channel, message):
         pass
@@ -157,5 +185,27 @@ class AgentComms:
         if row:
             return json.loads(row['state_data'])
         return {}
+
+    async def save_bounty_lifecycle(self, bounty_id: str, bounty_title: str, platform: str, payout_usd: float,
+                                    bounty_type: str, assigned_specialists: str, consensus_trials: int,
+                                    strategies_used: str, status: str, deciding_agent_id: int, submission_payload: str):
+        # We use an UPSERT logic based on bounty_id to avoid creating duplicates for the same hunt
+        # Wait, there's no UNIQUE constraint on bounty_id in the schema... let's just use a simple check or INSERT
+        # Actually, it's safer to just INSERT a new record when the lifecycle status changes.
+        await self._pg_execute("""
+            INSERT INTO bounty_lifecycle_log (
+                bounty_id, bounty_title, platform, payout_usd, bounty_type, 
+                assigned_specialists, consensus_trials, strategies_used, 
+                status, deciding_agent_id, submission_payload
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        """, bounty_id, bounty_title, platform, payout_usd, bounty_type, 
+             assigned_specialists, consensus_trials, strategies_used, 
+             status, deciding_agent_id, submission_payload)
+
+    async def save_api_metric(self, api_key: str, endpoint: str, items_returned: int, response_time_ms: int):
+        await self._pg_execute("""
+            INSERT INTO bounty_api_metrics (api_key, endpoint, items_returned, response_time_ms)
+            VALUES ($1, $2, $3, $4)
+        """, api_key, endpoint, items_returned, response_time_ms)
 
 BountyComms = AgentComms

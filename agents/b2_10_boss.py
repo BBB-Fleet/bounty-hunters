@@ -62,6 +62,32 @@ async def run_pipeline(comms: BountyComms) -> dict:
         "status": "in_progress"
     }
 
+    # Tracking vars for lifecycle log
+    target_bounty = {}
+    eval_result = {}
+    final_draft = {}
+    package_res = {}
+    trial = 0
+
+    async def log_lifecycle(status: str, deciding_agent_id: int):
+        if not target_bounty: return
+        b_type = target_bounty.get("bounty_type", "sdk_tooling")
+        spec_id = {"smart_contract_audit": 7, "defi_vulnerability": 4, "cross_chain_bridge": 3, "solana_rust": 6, "sdk_tooling": 5, "documentation": 5}.get(b_type, 5)
+        assigned = f"1,2,8,9,10,11,{spec_id}"
+        await comms.save_bounty_lifecycle(
+            bounty_id=target_bounty.get("bounty_id", ""),
+            bounty_title=target_bounty.get("title", ""),
+            platform=target_bounty.get("platform", ""),
+            payout_usd=float(eval_result.get("estimated_payout", 0.0)),
+            bounty_type=b_type,
+            assigned_specialists=assigned,
+            consensus_trials=trial,
+            strategies_used=final_draft.get("strategies_used", "") if isinstance(final_draft, dict) else "",
+            status=status,
+            deciding_agent_id=deciding_agent_id,
+            submission_payload=package_res.get("formatted_submission", "") if isinstance(package_res, dict) else ""
+        )
+
     # =========================================================================
     # PHASE 1: THE HUNT
     # =========================================================================
@@ -91,6 +117,7 @@ async def run_pipeline(comms: BountyComms) -> dict:
     if not eval_result.get("approved", False):
         print(f"[PHASE 2] Bounty Rejected: {eval_result.get('reason')}")
         pipeline_summary["status"] = "rejected_in_phase_2"
+        await log_lifecycle("REJECTED_ROI", 2)
         return pipeline_summary
     print(f"[PHASE 2] Approved! ROI Score: {eval_result.get('roi_score')}")
 
@@ -154,6 +181,7 @@ async def run_pipeline(comms: BountyComms) -> dict:
     if not consensus_reached:
         print("\n[PHASE 5] Pipeline Failed: Consensus could not be reached within 3 trials.")
         pipeline_summary["status"] = "failed_consensus"
+        await log_lifecycle("FAILED_CONSENSUS", 8)  # Watchdog usually blocks
         return pipeline_summary
 
     # =========================================================================
@@ -188,6 +216,8 @@ async def run_pipeline(comms: BountyComms) -> dict:
     print("\n" + "=" * 60)
     print(f"SUCCESS! Submission {submit_res.get('submission_id')} sent to Fleet 1 Review Bridge!")
     print("=" * 60 + "\n")
+    
+    await log_lifecycle("SUBMITTED_TO_FLEET1", 10)
 
     return pipeline_summary
 
