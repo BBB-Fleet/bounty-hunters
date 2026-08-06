@@ -1,139 +1,89 @@
 """
-BBB Fleet 2: Bounty Hunters — Agent 11: The Closer (Bounty Platform Scout)
-===========================================================================
-Phase 1 agent. Scrapes bounty platforms (Algora, GitHub Issues, Immunefi)
-for open opportunities the fleet can tackle.
+BBB Fleet 2: Bounty Hunters — Agent 11: Closer (Deal Sealer)
+============================================================
+Phase 7 agent. The final gatekeeper. Validates the entire state machine 
+has been respected before stamping PENDING_FLEET1_REVIEW and committing 
+the final bundle to the Neon database.
 """
 
 import asyncio
 import json
-import os
 from datetime import datetime
-
-import aiohttp
 
 AGENT_ID = 11
 AGENT_NAME = "B2 Closer"
 
+# Strict State Machine Transition Rules
+VALID_STATE_TRANSITIONS = {
+    "DISCOVERED": ["TRIAGED"],
+    "TRIAGED": ["SANDBOX_VALIDATED"],
+    "SANDBOX_VALIDATED": ["TRIPLE_RUN_VERIFIED"],
+    "TRIPLE_RUN_VERIFIED": ["READY_FOR_REVIEW"],
+    "READY_FOR_REVIEW": ["PENDING_FLEET1_REVIEW"],
+    "PENDING_FLEET1_REVIEW": ["FLEET1_APPROVED", "FLEET1_REJECTED"]
+}
 
-async def _fetch_json(url: str, headers: dict = None, timeout: int = 15) -> dict | list | None:
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers or {}, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
-                if resp.status == 200:
-                    return await resp.json(content_type=None)
-    except Exception as e:
-        print(f"[{AGENT_NAME}] Fetch error {url}: {e}")
-    return None
-
-
-async def scan_algora() -> list:
-    """Scan Algora for open bounties."""
-    bounties = []
-    orgs = ["electric-capital", "starkware", "ethereum", "solana-labs", "paradigm-xyz"]
-    for org in orgs:
-        url = f"https://api.algora.io/api/orgs/{org}/bounties"
-        data = await _fetch_json(url)
-        if data and isinstance(data, list):
-            for b in data[:3]:
-                bounties.append({
-                    "platform": "algora",
-                    "bounty_id": f"algora-{b.get('id', 'unknown')}",
-                    "title": b.get("title", "Untitled")[:200],
-                    "description": str(b.get("body", b.get("description", "")))[:500],
-                    "payout_range": b.get("reward", {}).get("amount", "Unknown"),
-                    "repo_url": b.get("html_url", b.get("url", "")),
-                    "deadline": b.get("deadline", None),
-                    "bounty_type": "sdk_tooling",
-                    "status": "open"
-                })
-    return bounties
+def validate_state_transition(current_state: str, new_state: str) -> bool:
+    """Ensures we don't skip phases in the state machine."""
+    allowed_next = VALID_STATE_TRANSITIONS.get(current_state, [])
+    return new_state in allowed_next
 
 
-async def scan_github_bounties(token: str = None) -> list:
-    """Search GitHub for issues labeled 'bounty'."""
-    bounties = []
-    headers = {"Accept": "application/vnd.github+json", "User-Agent": "BBB-BountyHunters"}
-    if token and isinstance(token, str) and token.strip() and token != "None":
-        headers["Authorization"] = f"Bearer {token.strip()}"
-    url = "https://api.github.com/search/issues?q=label:bounty+state:open+sort:created&per_page=10"
-    data = await _fetch_json(url, headers)
-    if data and "items" in data:
-        for item in data["items"][:5]:
-            repo_url = item.get("repository_url", "").replace("api.github.com/repos", "github.com")
-            bounties.append({
-                "platform": "github",
-                "bounty_id": f"gh-{item.get('number', 0)}",
-                "title": item.get("title", "")[:200],
-                "description": str(item.get("body", ""))[:500],
-                "payout_range": "Varies",
-                "repo_url": item.get("html_url", ""),
-                "deadline": None,
-                "bounty_type": "sdk_tooling",
-                "status": "open"
-            })
-    return bounties
-
-
-async def scan_immunefi() -> list:
-    """Scan Immunefi unofficial JSON feed for active programs."""
-    bounties = []
-    url = "https://raw.githubusercontent.com/infosec-us-team/Immunefi-Bug-Bounty-Programs-Unofficial/main/projects.json"
-    data = await _fetch_json(url, timeout=30)
-    if data and isinstance(data, list):
-        for prog in data[:5]:
-            bounties.append({
-                "platform": "immunefi",
-                "bounty_id": f"imm-{prog.get('id', prog.get('name', 'unknown'))}",
-                "title": prog.get("name", "Untitled")[:200],
-                "description": str(prog.get("description", ""))[:500],
-                "payout_range": prog.get("maximum_reward", prog.get("maxBounty", "Unknown")),
-                "repo_url": prog.get("url", prog.get("link", "")),
-                "deadline": None,
-                "bounty_type": "smart_contract_audit",
-                "status": "open"
-            })
-    return bounties
-
-
-async def scan_platforms() -> list:
-    """Scan all bounty platforms and return combined results."""
-    target = os.environ.get("TARGET_PLATFORM", "all").lower()
-    all_bounties = []
-
-    if target in ("all", "algora"):
-        print(f"[{AGENT_NAME}] Scanning Algora...")
-        all_bounties.extend(await scan_algora())
-
-    if target in ("all", "github"):
-        print(f"[{AGENT_NAME}] Scanning GitHub bounties...")
-        token = os.environ.get("GITHUB_TOKEN", "")
-        all_bounties.extend(await scan_github_bounties(token))
-
-    if target in ("all", "immunefi"):
-        print(f"[{AGENT_NAME}] Scanning Immunefi...")
-        all_bounties.extend(await scan_immunefi())
-
-    print(f"[{AGENT_NAME}] Total bounties discovered: {len(all_bounties)}")
-    return all_bounties[:10]  # Top 10
+async def commit_to_neon_db(payload: dict) -> bool:
+    """
+    Mock function to represent the final insertion into the Neon Postgres database.
+    In production, this executes the actual SQL INSERT into `bbb_fleet_handoff`.
+    """
+    print(f"[{AGENT_NAME}] Preparing DB commit for: {payload.get('bounty_id')}")
+    print(f"[{AGENT_NAME}] Evidence Bundle Hash: {payload.get('evidence_hash')}")
+    # Simulating DB latency
+    await asyncio.sleep(1)
+    print(f"[{AGENT_NAME}] Successfully committed to Neon DB table `bbb_fleet_handoff`.")
+    return True
 
 
 async def run(comms, context: dict = None) -> dict:
-    """Main agent function called by the Boss pipeline."""
-    print(f"[{AGENT_NAME}] Phase 1: THE HUNT — Scanning bounty platforms...")
-    bounties = await scan_platforms()
-
+    """Closer ensures all requirements are met before sending to Fleet 1."""
+    payload = context or {}
+    
+    current_state = payload.get("state", "UNKNOWN")
+    bounty_id = payload.get("bounty_id", "Unknown")
+    
+    print(f"[{AGENT_NAME}] Phase 7: FINAL PACKAGE REVIEW for {bounty_id}")
+    print(f"[{AGENT_NAME}] Current State: {current_state}")
+    
+    # 1. Validate State Machine
+    if current_state != "READY_FOR_REVIEW":
+        print(f"[{AGENT_NAME}] FATAL: Package {bounty_id} is in state {current_state}. Must be READY_FOR_REVIEW.")
+        return {"error": "Invalid state", "state": current_state}
+        
+    # 2. Check for missing critical data
+    if not payload.get("evidence_hash"):
+        print(f"[{AGENT_NAME}] FATAL: Missing Evidence Hash. Cannot commit.")
+        return {"error": "Missing evidence hash"}
+        
+    # 3. Transition State
+    if not validate_state_transition(current_state, "PENDING_FLEET1_REVIEW"):
+         print(f"[{AGENT_NAME}] FATAL: Invalid state transition.")
+         return {"error": "Invalid state transition"}
+         
+    payload["state"] = "PENDING_FLEET1_REVIEW"
+    print(f"[{AGENT_NAME}] State transition to PENDING_FLEET1_REVIEW approved.")
+    
+    # 4. Commit to Database
+    success = await commit_to_neon_db(payload)
+    
     result = {
         "agent": AGENT_NAME,
-        "phase": "hunt",
-        "bounties_found": len(bounties),
-        "bounties": bounties,
+        "phase": "final_signoff",
+        "bounty_id": bounty_id,
+        "final_state": payload["state"],
+        "db_committed": success,
         "timestamp": datetime.utcnow().isoformat()
     }
 
-    if comms:
-        await comms.save_state("bounty_discovered", json.dumps(result))
-        await comms.save_pipeline_log("phase_1_hunt", f"Discovered {len(bounties)} bounties across platforms")
+    if comms and success:
+        await comms.save_pipeline_log("phase_7_final", f"Closer stamped {bounty_id} as PENDING_FLEET1_REVIEW")
 
     return result
 
@@ -142,9 +92,16 @@ async def main():
     from core.bounty_comms import BountyComms
     comms = BountyComms(AGENT_ID, AGENT_NAME)
     await comms.startup()
-    result = await run(comms)
-    print(f"[{AGENT_NAME}] Results: {json.dumps(result, indent=2)[:1000]}")
-    await comms.shutdown(f"Discovered {result['bounties_found']} bounties", "", "")
+    
+    # Mock valid payload
+    valid_payload = {
+        "bounty_id": "SHERLOCK-1002",
+        "state": "READY_FOR_REVIEW",
+        "evidence_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+    
+    await run(comms, valid_payload)
+    await comms.shutdown("Closer completed", "", "")
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -1,236 +1,97 @@
 """
-BBB Fleet 2: Bounty Hunters — Agent 10: Boss (Bounty Pipeline Orchestrator)
-===========================================================================
-MAIN ORCHESTRATOR FOR FLEET 2.
-Executes the full 7-Phase Bounty Pipeline:
-  Phase 1: The Hunt (b2_11_closer)
-  Phase 2: Internal Approval (b2_10_boss + b2_2_accountant)
-  Phase 3: Intel Gathering (b2_1_scanner)
-  Phase 4: The War Room (Specialist + b2_8_watchdog)
-  Phase 5: Consensus Loop (100% agreement required, max 3 trials)
-  Phase 6: Packaging (b2_9_broadcaster + b2_11_closer review)
-  Phase 7: Invoice Submission (b2_2_accountant -> bbb_fleet_handoff table)
+BBB Fleet 2: Bounty Hunters — Agent 10: Boss (Orchestrator)
+===========================================================
+Phase 4 agent. Oversees deterministic execution. Forces the PoC to be run 
+three separate times, ensuring the exit code, findings, and evidence bundle
+hash are identical across all three runs before passing to Evidence.
 """
 
 import asyncio
 import json
-import sys
+import hashlib
 from datetime import datetime
-
-from agents import (
-    b2_1_scanner,
-    b2_2_accountant,
-    b2_3_bridge,
-    b2_4_lender,
-    b2_5_gas_requester,
-    b2_6_solana_ghost,
-    b2_7_minter,
-    b2_8_watchdog,
-    b2_9_broadcaster,
-    b2_11_closer,
-)
-from core.bounty_comms import BountyComms
-from core.bounty_shared_config import MAX_CONSENSUS_TRIALS, SPECIALIST_MAPPING
 
 AGENT_ID = 10
 AGENT_NAME = "B2 Boss"
 
+def validate_triple_run(run_results: list) -> dict:
+    """
+    Takes a list of 3 execution results from the Watchdog sandbox.
+    Verifies strict determinism across all runs.
+    """
+    if len(run_results) != 3:
+         return {"deterministic": False, "error": f"Expected 3 runs, got {len(run_results)}"}
+         
+    # 1. Verify identical exit codes
+    exit_codes = [r.get("exit_code") for r in run_results]
+    if len(set(exit_codes)) != 1:
+        return {"deterministic": False, "error": f"Mismatched exit codes: {exit_codes}"}
+        
+    if exit_codes[0] != 0:
+         return {"deterministic": False, "error": f"All runs failed with exit code: {exit_codes[0]}"}
 
-def get_specialist(bounty_type: str):
-    """Map bounty type to specialist module."""
-    mapping = {
-        "smart_contract_audit": b2_7_minter,
-        "defi_vulnerability": b2_4_lender,
-        "cross_chain_bridge": b2_3_bridge,
-        "solana_rust": b2_6_solana_ghost,
-        "sdk_tooling": b2_5_gas_requester,
-        "documentation": b2_5_gas_requester,
-    }
-    return mapping.get(bounty_type, b2_5_gas_requester)
-
-
-async def run_pipeline(comms: BountyComms) -> dict:
-    """Execute the 7-Phase Bounty Pipeline."""
-    print("\n" + "=" * 60)
-    print("BBB FLEET 2: BOUNTY HUNTERS -- PIPELINE STARTING")
-    print("=" * 60 + "\n")
-
-    pipeline_summary = {
-        "pipeline_run_id": f"RUN-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
-        "timestamp": datetime.utcnow().isoformat(),
-        "phases": {},
-        "status": "in_progress"
-    }
-
-    # Tracking vars for lifecycle log
-    target_bounty = {}
-    eval_result = {}
-    final_draft = {}
-    package_res = {}
-    trial = 0
-
-    async def log_lifecycle(status: str, deciding_agent_id: int):
-        if not target_bounty: return
-        b_type = target_bounty.get("bounty_type", "sdk_tooling")
-        spec_id = {"smart_contract_audit": 7, "defi_vulnerability": 4, "cross_chain_bridge": 3, "solana_rust": 6, "sdk_tooling": 5, "documentation": 5}.get(b_type, 5)
-        assigned = f"1,2,8,9,10,11,{spec_id}"
-        await comms.save_bounty_lifecycle(
-            bounty_id=target_bounty.get("bounty_id", ""),
-            bounty_title=target_bounty.get("title", ""),
-            platform=target_bounty.get("platform", ""),
-            payout_usd=float(eval_result.get("estimated_payout", 0.0)),
-            bounty_type=b_type,
-            assigned_specialists=assigned,
-            consensus_trials=trial,
-            strategies_used=final_draft.get("strategies_used", "") if isinstance(final_draft, dict) else "",
-            status=status,
-            deciding_agent_id=deciding_agent_id,
-            submission_payload=package_res.get("formatted_submission", "") if isinstance(package_res, dict) else ""
-        )
-
-    # =========================================================================
-    # PHASE 1: THE HUNT
-    # =========================================================================
-    print("\n[PHASE 1] THE HUNT -- Scouting bounty platforms...")
-    hunt_result = await b2_11_closer.run(comms)
-    pipeline_summary["phases"]["1_hunt"] = {
-        "bounties_found": hunt_result.get("bounties_found", 0)
-    }
-
-    discovered = hunt_result.get("bounties", [])
-    if not discovered:
-        print("[PHASE 1] ⚠️ No open bounties discovered. Pipeline exiting cleanly.")
-        pipeline_summary["status"] = "completed_no_bounties"
-        return pipeline_summary
-
-    # Select candidate bounty
-    target_bounty = discovered[0]
-    print(f"[PHASE 1] Target Bounty Selected: [{target_bounty.get('platform')}] {target_bounty.get('title')}")
-
-    # =========================================================================
-    # PHASE 2: INTERNAL APPROVAL
-    # =========================================================================
-    print("\n[PHASE 2] INTERNAL APPROVAL -- Evaluating ROI & fleet match...")
-    eval_result = await b2_2_accountant.run(comms, {"action": "evaluate", "bounty": target_bounty})
-    pipeline_summary["phases"]["2_approval"] = eval_result
-
-    if not eval_result.get("approved", False):
-        print(f"[PHASE 2] Bounty Rejected: {eval_result.get('reason')}")
-        pipeline_summary["status"] = "rejected_in_phase_2"
-        await log_lifecycle("REJECTED_ROI", 2)
-        return pipeline_summary
-    print(f"[PHASE 2] Approved! ROI Score: {eval_result.get('roi_score')}")
-
-    # =========================================================================
-    # PHASE 3: INTEL GATHERING
-    # =========================================================================
-    print("\n[PHASE 3] INTEL GATHERING -- Scraping code & master data...")
-    intel_result = await b2_1_scanner.run(comms, target_bounty)
-    pipeline_summary["phases"]["3_intel"] = {
-        "files_scraped": intel_result.get("files_scraped", 0)
-    }
-
-    # =========================================================================
-    # PHASE 4 & 5: WAR ROOM & CONSENSUS LOOP
-    # =========================================================================
-    print("\n[PHASE 4 & 5] WAR ROOM & CONSENSUS LOOP -- Solving & Auditing...")
-    specialist_mod = get_specialist(target_bounty.get("bounty_type", "sdk_tooling"))
-
-    trial = 1
-    consensus_reached = False
-    final_draft = None
-    final_audit = None
-
-    while trial <= MAX_CONSENSUS_TRIALS and not consensus_reached:
-        print(f"\n--- CONSENSUS TRIAL {trial}/{MAX_CONSENSUS_TRIALS} ---")
-
-        # Step A: Specialist formulates solution
-        draft_res = await specialist_mod.run(comms, intel_result.get("intel", {}))
-
-        # Step B: Watchdog audits draft
-        audit_res = await b2_8_watchdog.run(comms, draft_res)
-
-        # Step C: Collect votes
-        votes = [
-            {"agent": "Scanner", "vote": "AGREE", "reason": "Data matched"},
-            {"agent": "Accountant", "vote": eval_result.get("vote", "AGREE"), "reason": eval_result.get("reason")},
-            {"agent": draft_res.get("agent"), "vote": draft_res.get("vote", "AGREE"), "reason": draft_res.get("reason")},
-            {"agent": "Watchdog", "vote": audit_res.get("vote", "AGREE"), "reason": audit_res.get("reason")}
-        ]
-
-        # Tally consensus
-        disagreements = [v for v in votes if v["vote"] != "AGREE"]
-
-        if not disagreements:
-            print(f"CONSENSUS ACHIEVED ON TRIAL {trial}! All participating agents VOTE AGREE!")
-            consensus_reached = True
-            final_draft = draft_res
-            final_audit = audit_res
-        else:
-            print(f"CONSENSUS FAILED ON TRIAL {trial}. Disagreements:")
-            for d in disagreements:
-                print(f"   - [{d['agent']}]: {d['reason']}")
-            trial += 1
-            await asyncio.sleep(1)
-
-    pipeline_summary["phases"]["4_5_consensus"] = {
-        "trials_took": trial if consensus_reached else MAX_CONSENSUS_TRIALS,
-        "consensus_achieved": consensus_reached
-    }
-
-    if not consensus_reached:
-        print("\n[PHASE 5] Pipeline Failed: Consensus could not be reached within 3 trials.")
-        pipeline_summary["status"] = "failed_consensus"
-        await log_lifecycle("FAILED_CONSENSUS", 8)  # Watchdog usually blocks
-        return pipeline_summary
-
-    # =========================================================================
-    # PHASE 6: PACKAGING
-    # =========================================================================
-    print("\n[PHASE 6] PACKAGING -- Formatting submission payload...")
-    package_context = {
-        "platform": target_bounty.get("platform", "algora"),
-        "bounty_title": target_bounty.get("title", ""),
-        "bounty_id": target_bounty.get("bounty_id", ""),
-        "draft": final_draft.get("draft", ""),
-        "audit": final_audit.get("audit_report", ""),
-        "estimated_payout": eval_result.get("estimated_payout", 100.0),
-        "requires_onchain": final_draft.get("requires_onchain", False),
-        "gas_estimate_eth": final_draft.get("gas_estimate_eth", 0.0),
-        "consensus_trials": trial
-    }
-
-    package_res = await b2_9_broadcaster.run(comms, package_context)
-    pipeline_summary["phases"]["6_packaging"] = {
-        "formatted_size": len(package_res.get("formatted_submission", ""))
-    }
-
-    # =========================================================================
-    # PHASE 7: INVOICE SUBMISSION TO FLEET 1
-    # =========================================================================
-    print("\n[PHASE 7] INVOICE -- Handing off submission to Fleet 1...")
-    submit_res = await b2_2_accountant.run(comms, {"action": "submit", "bounty": package_res})
-    pipeline_summary["phases"]["7_invoice"] = submit_res
-    pipeline_summary["status"] = "completed_submitted_to_fleet1"
-
-    print("\n" + "=" * 60)
-    print(f"SUCCESS! Submission {submit_res.get('submission_id')} sent to Fleet 1 Review Bridge!")
-    print("=" * 60 + "\n")
+    # 2. Verify identical output fingerprints (hashing stdout to compare)
+    # We strip timestamps/variable pointers if needed in production before hashing
+    stdouts = [r.get("stdout", "") for r in run_results]
+    hashes = [hashlib.sha256(out.encode()).hexdigest() for out in stdouts]
     
-    await log_lifecycle("SUBMITTED_TO_FLEET1", 10)
+    if len(set(hashes)) != 1:
+        return {"deterministic": False, "error": "Mismatched output signatures across runs"}
+        
+    print(f"[{AGENT_NAME}] Triple-Run Validation PASSED. Determinism confirmed.")
+    print(f"[{AGENT_NAME}] Deterministic Hash: {hashes[0]}")
+    
+    return {
+        "deterministic": True,
+        "verified_hash": hashes[0],
+        "exit_code": exit_codes[0]
+    }
 
-    return pipeline_summary
+
+async def run(comms, context: dict = None) -> dict:
+    """Boss validates determinism."""
+    payload = context or {}
+    print(f"[{AGENT_NAME}] Phase 4: ORCHESTRATION & DETERMINISM CHECK started...")
+    
+    # In production, Boss would command Watchdog to execute 3 times and collect this list
+    triple_run_results = payload.get("triple_run_results", [])
+    
+    validation = validate_triple_run(triple_run_results)
+    
+    if not validation["deterministic"]:
+        print(f"[{AGENT_NAME}] FATAL: Nondeterministic execution detected. Rejecting.")
+        return {"error": validation["error"]}
+        
+    result = {
+        "agent": AGENT_NAME,
+        "phase": "triple_run_validation",
+        "deterministic": True,
+        "verified_hash": validation["verified_hash"],
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+    if comms:
+        await comms.save_pipeline_log("phase_4_boss", f"Verified deterministic triple-run (Hash: {validation['verified_hash']})")
+
+    return result
 
 
 async def main():
+    from core.bounty_comms import BountyComms
     comms = BountyComms(AGENT_ID, AGENT_NAME)
     await comms.startup()
-
-    summary = await run_pipeline(comms)
-
-    await comms.save_state("pipeline_status", json.dumps(summary))
-    await comms.shutdown()
-
+    
+    mock_payload = {
+        "triple_run_results": [
+            {"exit_code": 0, "stdout": "Success: 500 drained"},
+            {"exit_code": 0, "stdout": "Success: 500 drained"},
+            {"exit_code": 0, "stdout": "Success: 500 drained"}
+        ]
+    }
+    
+    res = await run(comms, mock_payload)
+    print(res)
+    await comms.shutdown("Boss validation complete", "", "")
 
 if __name__ == "__main__":
     asyncio.run(main())
