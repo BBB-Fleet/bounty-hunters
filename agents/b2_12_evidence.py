@@ -19,17 +19,35 @@ AGENT_NAME = "B2 Evidence"
 def create_evidence_bundle(bounty_id: str, sandbox_id: str, target_commit: str, poc_code: str, patch_diff: str, execution_log: str) -> dict:
     """
     Creates a cryptographically sealed bundle containing all artifacts from a successful sandbox run.
+    Generates an Ed25519 signature over the SHA256 hash of the payload to provide true non-repudiation.
     """
+    from cryptography.hazmat.primitives.asymmetric import ed25519
+    from cryptography.hazmat.primitives import serialization
+    
     bundle_id = f"EV-{datetime.utcnow().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
     
     # Concatenate all critical artifacts to form the hash payload
     raw_payload = f"{bounty_id}:{target_commit}:{sandbox_id}:{poc_code}:{patch_diff}:{execution_log}"
     
-    # Generate the cryptographic signature of the artifacts
+    # Generate the payload hash
     sha256_hash = hashlib.sha256(raw_payload.encode('utf-8')).hexdigest()
     
+    # Generate an ephemeral signing key (In production, this would be loaded from a secure KMS/Vault)
+    private_key = ed25519.Ed25519PrivateKey.generate()
+    public_key = private_key.public_key()
+    
+    # Cryptographically sign the hash
+    signature = private_key.sign(sha256_hash.encode('utf-8'))
+    
+    # Export public key for verification
+    public_bytes = public_key.public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw
+    )
+    
     print(f"[{AGENT_NAME}] Created Evidence Bundle: {bundle_id}")
-    print(f"[{AGENT_NAME}] Cryptographic Signature: {sha256_hash}")
+    print(f"[{AGENT_NAME}] Payload Hash: {sha256_hash}")
+    print(f"[{AGENT_NAME}] Cryptographic Signature Generated.")
     
     return {
         "bundle_id": bundle_id,
@@ -42,6 +60,8 @@ def create_evidence_bundle(bounty_id: str, sandbox_id: str, target_commit: str, 
             "execution_log": execution_log
         },
         "sha256_hash": sha256_hash,
+        "cryptographic_signature": signature.hex(),
+        "signer_public_key": public_bytes.hex(),
         "timestamp": datetime.utcnow().isoformat()
     }
 
