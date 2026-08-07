@@ -164,7 +164,7 @@ class AgentComms:
     async def startup(self):
         await self.init_db()
 
-    async def shutdown(self):
+    async def shutdown(self, *args, **kwargs):
         if self._pg_conn and not self._pg_conn.is_closed():
             await self._pg_conn.close()
 

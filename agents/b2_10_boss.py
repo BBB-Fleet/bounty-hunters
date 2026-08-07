@@ -35,6 +35,7 @@ def validate_triple_run(run_results: list) -> dict:
     # to prevent strict hashing from rejecting valid but non-deterministic exploits (e.g. MEV, Race Conditions)
     import re
     cleaned_stdouts = []
+    stdouts = [r.get("stdout", "") for r in run_results]
     for out in stdouts:
         # Strip timestamps like 2026-08-06T12:00:00
         out = re.sub(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z?', '<TIMESTAMP>', out)
