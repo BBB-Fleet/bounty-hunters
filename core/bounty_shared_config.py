@@ -52,3 +52,64 @@ SPECIALIST_MAPPING = {
     'sdk_tooling': 11,
     'documentation': 9
 }
+
+# === Fleet 2: 16 Runs Per Day Schedule (90-Minute Interval Loop) ===
+RUNS_PER_DAY = 16
+CYCLE_INTERVAL_MINUTES = 90
+
+# === Fleet 2: Daily Practice Repository Arena (Curated Targets Pool) ===
+FLEET2_PRACTICE_CATALOG = [
+    {
+        "id": "B2-PRAC-001",
+        "name": "Ethernaut - Reentrancy & Fallback Exploits",
+        "category": "EVM Smart Contract Audit",
+        "repo_url": "https://github.com/OpenZeppelin/ethernaut",
+        "vulnerability_types": ["Reentrancy", "Access Control Bypass", "Fallback Function Misconfiguration"],
+        "target_file": "contracts/levels/Reentrancy.sol"
+    },
+    {
+        "id": "B2-PRAC-002",
+        "name": "Damn Vulnerable DeFi - Unstoppable Vault Flaw",
+        "category": "DeFi Flash Loan Vulnerability",
+        "repo_url": "https://github.com/tinchoabbate/damn-vulnerable-defi",
+        "vulnerability_types": ["Flash Loan Denial of Service", "Strict Balance Assertion", "State Desynchronization"],
+        "target_file": "contracts/unstoppable/UnstoppableVault.sol"
+    },
+    {
+        "id": "B2-PRAC-003",
+        "name": "OWASP Web3 - Price Oracle Front-Running",
+        "category": "DeFi Price Feed Security",
+        "repo_url": "https://github.com/OWASP/www-project-web3-security-testing-guide",
+        "vulnerability_types": ["Oracle Manipulation", "Spot Price Slippage Exploit", "Stale Feed Usage"],
+        "target_file": "challenges/oracle_manipulation.sol"
+    },
+    {
+        "id": "B2-PRAC-004",
+        "name": "OpenZeppelin Account Abstraction - Paymaster Signature Bypass",
+        "category": "ERC-4337 Smart Account Security",
+        "repo_url": "https://github.com/eth-infinitism/account-abstraction",
+        "vulnerability_types": ["Paymaster Signature Validation Failure", "Gas Drainage Exploit", "Replay Attack"],
+        "target_file": "contracts/core/BasePaymaster.sol"
+    },
+    {
+        "id": "B2-PRAC-005",
+        "name": "Solana Anchor - Discriminator & Owner Check Bypass",
+        "category": "Solana Rust Security",
+        "repo_url": "https://github.com/coral-xyz/anchor",
+        "vulnerability_types": ["Account Owner Validation Missing", "Anchor Discriminator Mismatch", "Signer Check Bypass"],
+        "target_file": "programs/system/src/lib.rs"
+    }
+]
+
+# === Fleet 2: Vulnerability-First Discovery Guidelines ===
+VULNERABILITY_DISCOVERY_RULES = """
+FLEET 2 MISSION DIRECTIVE: Focus strictly on DISCOVERING and REPORTING novel bugs and security vulnerabilities on GitHub & Bug Bounty Platforms.
+- DO NOT submit simple code formatting, docstring patches, or minor non-security PRs.
+- PRIORITIZE: Smart contract reentrancy, access control bypasses, oracle manipulation, paymaster signature validation bugs, denial of service, and severe logic flaws.
+- SUBMISSION REQUIREMENTS:
+  1. Title & Vulnerability Type (Critical / High / Medium / Low)
+  2. Affected Component / Function / File
+  3. Proof-of-Concept / Exploit Scenario
+  4. Impact Assessment & Recommended Remediation
+"""
+
