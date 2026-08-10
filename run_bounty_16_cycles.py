@@ -15,7 +15,7 @@ import json
 import hashlib
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-from datetime import datetime
+from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -132,7 +132,7 @@ async def run_single_bounty_cycle(cycle_num: int):
             formatted_body = fmt_res.get("formatted_submission", "")
             
             # 6. Build Cryptographic Chain of Evidence (SHA-256 Key)
-            evidence_raw = f"{active_target.get('bounty_id')}:{active_target.get('platform')}:{verified_hash}:{sandbox_res.get('sandbox_build_hash')}:{sandbox_res.get('sandbox_destruction_hash')}:{datetime.utcnow().isoformat()}"
+            evidence_raw = f"{active_target.get('bounty_id')}:{active_target.get('platform')}:{verified_hash}:{sandbox_res.get('sandbox_build_hash')}:{sandbox_res.get('sandbox_destruction_hash')}:{datetime.now(timezone.utc).isoformat()}"
             chain_evidence_hash = hashlib.sha256(evidence_raw.encode()).hexdigest()
             
             # 7. Agent 11 (Closer) Gatekeeper Check
