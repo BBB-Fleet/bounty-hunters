@@ -14,23 +14,52 @@ SPLITS_VAULT = os.environ.get('SPLITS_VAULT', '0xc87c3e8CB21e5A630Baf8D38b2060aC
 FLEET_PREFIX = 'bounty'
 
 AGENTS = {
-    1: 'Bounty Intel Scraper',
-    2: 'Bounty ROI Evaluator',
-    3: 'Cross-Chain Bounty Specialist',
-    4: 'DeFi Bounty Specialist',
-    5: 'Gas Cost Estimator',
-    6: 'Solana/Rust Bounty Specialist',
-    7: 'Smart Contract Bounty Specialist',
-    8: 'Bounty Draft Security Auditor',
-    9: 'Submission Formatter',
-    10: 'Bounty Pipeline Orchestrator',
-    11: 'Bounty Platform Scout'
+    1: 'Bounty Intel Scraper (Scanner)',
+    2: 'Bounty ROI Evaluator & Invoice Submitter (Accountant)',
+    3: 'Cross-Chain Bounty Specialist (Bridge)',
+    4: 'DeFi Bounty Specialist (Lender)',
+    5: 'Gas Cost Estimator & SDK Dev (Gas Requester)',
+    6: 'Solana/Rust Bounty Specialist (Solana Ghost)',
+    7: 'Smart Contract Bounty Specialist (Minter)',
+    8: 'Sandbox Security Auditor & Firewall (Watchdog)',
+    9: 'Platform Submission Formatter (Broadcaster)',
+    10: 'Bounty Pipeline Orchestrator (Boss)',
+    11: 'Bounty Platform Scout (Closer)',
+    12: 'Forensics Evidence Collector (Evidence)'
+}
+
+# === MASTER LIST: AI-Friendly Bug Bounty Sources (No Login Required) ===
+MASTER_BUG_BOUNTY_SOURCES = {
+    "TIER_1_FULLY_OPEN": [
+        {"name": "disclose.io", "url": "https://disclose.io", "type": "Global VDP & Bug Bounty Directory", "ai_friendliness": 5},
+        {"name": "Open Bug Bounty", "url": "https://openbugbounty.org", "type": "Fully Public Platform", "ai_friendliness": 5},
+        {"name": "HuntBug", "url": "https://huntbug.com", "type": "Public Program Directory", "ai_friendliness": 5},
+        {"name": "BountiesAlert", "url": "https://bountiesalert.com", "type": "Public Program Feed", "ai_friendliness": 5}
+    ],
+    "TIER_2_PUBLIC_LISTS": [
+        {"name": "Bugcrowd Public", "url": "https://bugcrowd.com/programs", "type": "Public Program List", "ai_friendliness": 3},
+        {"name": "HackerOne Directory", "url": "https://hackerone.com/directory/programs", "type": "Public Directory", "ai_friendliness": 2}
+    ],
+    "TIER_3_BROADCAST_FEEDS": [
+        {"name": "disclose.io Twitter Feed", "url": "https://twitter.com/disclose_io", "type": "Social Broadcast Alert", "ai_friendliness": 4},
+        {"name": "HuntBug Discord Feed", "url": "https://discord.gg/huntbug", "type": "Webhook Feed", "ai_friendliness": 4},
+        {"name": "Open Bug Bounty Telegram", "url": "https://t.me/openbugbounty", "type": "Public Alert Feed", "ai_friendliness": 4}
+    ],
+    "TIER_4_WEB3_PLATFORMS": [
+        {"name": "Immunefi", "url": "https://immunefi.com", "type": "Web3 Bug Bounties", "ai_friendliness": 5},
+        {"name": "Code4rena", "url": "https://code4rena.com", "type": "Audit Contests", "ai_friendliness": 5},
+        {"name": "Sherlock", "url": "https://sherlock.xyz", "type": "Web3 Security Contests", "ai_friendliness": 5}
+    ]
 }
 
 BOUNTY_PLATFORMS = {
-    'algora': 'https://api.algora.io/api',
-    'github': 'https://api.github.com',
-    'immunefi_feed': 'https://raw.githubusercontent.com/infosec-us-team/Immunefi-Bug-Bounty-Programs-Unofficial/main/projects.json'
+    'disclose': 'https://disclose.io',
+    'openbugbounty': 'https://openbugbounty.org',
+    'huntbug': 'https://huntbug.com',
+    'bountiesalert': 'https://bountiesalert.com',
+    'immunefi': 'https://immunefi.com',
+    'code4rena': 'https://code4rena.com',
+    'sherlock': 'https://sherlock.xyz'
 }
 
 MAX_CONSENSUS_TRIALS = 3
@@ -41,7 +70,7 @@ BOUNTY_TYPES = [
     'cross_chain_bridge',
     'solana_rust',
     'sdk_tooling',
-    'documentation'
+    'web_vulnerability'
 ]
 
 SPECIALIST_MAPPING = {
@@ -49,13 +78,18 @@ SPECIALIST_MAPPING = {
     'defi_vulnerability': 4,
     'cross_chain_bridge': 3,
     'solana_rust': 6,
-    'sdk_tooling': 11,
-    'documentation': 9
+    'sdk_tooling': 5,
+    'web_vulnerability': 1
 }
 
-# === Fleet 2: 16 Runs Per Day Schedule (90-Minute Interval Loop) ===
-RUNS_PER_DAY = 16
-CYCLE_INTERVAL_MINUTES = 90
+# === Fleet 2: 17 Daily Runs Schedule (1 Practice Run + 16 Real Vulnerability Runs) ===
+TOTAL_DAILY_RUNS = 17
+PRACTICE_RUNS_PER_DAY = 1
+REAL_BOUNTY_RUNS_PER_DAY = 16
+CYCLE_INTERVAL_MINUTES = 85
+
+# Legacy compatibility
+RUNS_PER_DAY = TOTAL_DAILY_RUNS
 
 # === Fleet 2: Daily Practice Repository Arena (Curated Targets Pool) ===
 FLEET2_PRACTICE_CATALOG = [
@@ -103,13 +137,12 @@ FLEET2_PRACTICE_CATALOG = [
 
 # === Fleet 2: Vulnerability-First Discovery Guidelines ===
 VULNERABILITY_DISCOVERY_RULES = """
-FLEET 2 MISSION DIRECTIVE: Focus strictly on DISCOVERING and REPORTING novel bugs and security vulnerabilities on GitHub & Bug Bounty Platforms.
-- DO NOT submit simple code formatting, docstring patches, or minor non-security PRs.
-- PRIORITIZE: Smart contract reentrancy, access control bypasses, oracle manipulation, paymaster signature validation bugs, denial of service, and severe logic flaws.
-- SUBMISSION REQUIREMENTS:
-  1. Title & Vulnerability Type (Critical / High / Medium / Low)
-  2. Affected Component / Function / File
-  3. Proof-of-Concept / Exploit Scenario
-  4. Impact Assessment & Recommended Remediation
+FLEET 2 MISSION DIRECTIVE: Target real bug bounties from the 12 Master AI-Friendly Sources (Tier 1..4).
+- 17 Daily Runs: 1 Practice Run + 16 Real Vulnerability Discovery Runs.
+- WATCHDOG: Creates private sandbox, guards against data leakage, verifies PoC, wipes sandbox.
+- BOSS: Enforces 3-Trial Triple-Agreement Consensus (Trial 1: Execution, Trial 2: Peer Agreement, Trial 3: Unanimous Affirmation).
+- BROADCASTER (Agent 9): Formats report to exact platform PDF standards.
+- ACCOUNTANT (Agent 2): Signs off on financial ROI and commits to Neon `bbb_fleet_handoff`.
 """
+
 

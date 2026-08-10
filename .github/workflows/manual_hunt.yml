@@ -6,15 +6,19 @@ on:
         description: 'Specific bounty URL to investigate (optional)'
         required: false
       platform:
-        description: 'Platform to scan (algora, github, immunefi)'
+        description: 'Platform to scan (immunefi, code4rena, sherlock, disclose, openbugbounty, huntbug, bountiesalert, all)'
         required: true
-        default: 'algora'
+        default: 'all'
         type: choice
         options:
-          - algora
-          - github
-          - immunefi
           - all
+          - immunefi
+          - code4rena
+          - sherlock
+          - disclose
+          - openbugbounty
+          - huntbug
+          - bountiesalert
 
 permissions:
   contents: write
@@ -24,15 +28,15 @@ permissions:
 jobs:
   targeted_hunt:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - run: pip install -r requirements.txt
-      - name: "Targeted Hunt"
-        run: python -m agents.b2_10_boss
+      - name: "Targeted Hunt (Runner Engine)"
+        run: python run_bounty_16_cycles.py
         env:
           PYTHONPATH: .
           NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
@@ -43,3 +47,4 @@ jobs:
           SPLITS_VAULT: "0xc87c3e8CB21e5A630Baf8D38b2060aCBb047afCb"
           TARGET_PLATFORM: ${{ github.event.inputs.platform }}
           TARGET_BOUNTY_URL: ${{ github.event.inputs.bounty_url }}
+

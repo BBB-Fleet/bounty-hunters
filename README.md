@@ -5,7 +5,7 @@
 ---
 
 **Architect**: Blade Yerby  
-**Fleet Model**: BBB-Fleet (2) -- 11 Autonomous Mercenary Units  
+**Fleet Model**: BBB-Fleet (2) -- 12 Autonomous Mercenary Units  
 **Governing License**: [MCLS v2 & Nine Doctrines](./MCLS_v2_LICENSE.md)  
 **Mercenary Vault**: `0xc87c3e8CB21e5A630Baf8D38b2060aCBb047afCb` ([Splits.org](https://splits.org))  
 
@@ -13,45 +13,67 @@
 
 ## Architectural Overview
 
-BBB Fleet 2 operates purely on logic, zero capital, and strict peer consensus. The fleet is a cloud-based autonomous bounty hunting system that discovers, analyzes, solves, and submits bounties across Web3 platforms.
+BBB Fleet 2 operates purely on logic, zero capital, and strict peer consensus. The fleet is a cloud-based autonomous bounty hunting system that discovers, analyzes, solves, and submits real bounties across open AI-friendly bug bounty platforms.
+
+### 17-Run Daily Schedule
+
+Fleet 2 operates on a **17-Run Daily Cycle** (~85-minute interval loop):
+- **1 Practice Run** (Cycle 1): Curated Daily Target Arena for continuous model alignment and validation.
+- **16 Real Vulnerability Runs** (Cycles 2–17): Real money-generating vulnerability discovery across the 12 Master Sources (1 vulnerability hunt per run).
+
+---
+
+### Master List of Bug Bounty Sources (12 Sources across 4 Tiers)
+
+| Tier | Category | Approved Sources | AI Friendliness |
+|------|----------|------------------|-----------------|
+| **Tier 1** | Fully Open & Scrape-Friendly | `disclose.io`, `Open Bug Bounty`, `HuntBug`, `BountiesAlert` | ⭐⭐⭐⭐⭐ |
+| **Tier 2** | Public Directories | `Bugcrowd Public`, `HackerOne Directory` | ⭐⭐⭐ |
+| **Tier 3** | Broadcast Feeds | `disclose.io Twitter/X`, `HuntBug Discord`, `Open Bug Bounty Telegram` | ⭐⭐⭐⭐ |
+| **Tier 4** | Web3 Platforms | `Immunefi`, `Code4rena`, `Sherlock` | ⭐⭐⭐⭐⭐ |
+
+---
 
 ### 7-Phase Bounty Pipeline
 
 | Phase | Name | Lead Agent | Description |
 |-------|------|-----------|-------------|
-| 1 | **The Hunt** | Agent 11 (Scout) | Scans Algora, GitHub, and Immunefi for active bounties |
-| 2 | **Internal Approval** | Agent 10 (Boss) + Agent 2 (Accountant) | Evaluates ROI and compute cost vs payout |
-| 3 | **Intel Gathering** | Agent 1 (Scanner) | Scrapes raw source code, READMEs, and documentation |
-| 4 | **The War Room** | Specialist (3-7) + Agent 8 (Watchdog) | Domain specialist drafts solution; Watchdog audits |
-| 5 | **Consensus Loop** | All Participants | 100% AGREE vote required. Max 3 trials |
-| 6 | **Packaging** | Agent 9 (Broadcaster) | Formats platform-specific submission payload |
-| 7 | **Invoice & Handoff** | Agent 2 (Accountant) | Submits to Fleet 1 review bridge via `bbb_fleet_handoff` |
+| 1 | **The Hunt** | Agent 1 (Scanner) + Agent 11 (Scout) | Scans Master List sources (Tier 1..4) for real bug bounties |
+| 2 | **Internal Approval** | Agent 10 (Boss) + Agent 2 (Accountant) | Evaluates ROI and compute cost vs payout potential |
+| 3 | **Intel & Target Intake** | Agent 1 (Scanner) | Scrapes target source code, documentation, and AST telemetry |
+| 4 | **Sandbox & War Room** | Specialists (3–7) + Agent 8 (Watchdog) | Watchdog builds private sandbox, guards firewall against data leakage, specialists write PoC |
+| 5 | **3-Trial Consensus** | Agent 10 (Boss) | 3-Trial Consensus: 1. Did it work? 2. Peer agreement? 3. Unanimous 3rd try pass (100% agreement or DENIED) |
+| 6 | **Platform Formatting** | Agent 9 (Broadcaster) | Formats report layout to match target platform standards (Immunefi, Code4rena, Sherlock, disclose.io) for PDF rendering |
+| 7 | **Handoff & Invoice** | Agent 2 (Accountant) + Agent 11 (Closer) | Wipes sandbox cleanly, signs SHA-256 evidence chain, and commits to Neon `bbb_fleet_handoff` for Fleet 1 |
 
-### The 11 Mercenary Agents
+---
 
-| ID | Codename | Specialty |
-|----|----------|-----------|
-| 1 | Scanner | Bounty Intel Scraper |
-| 2 | Accountant | ROI Evaluator & Invoice Submitter |
-| 3 | Bridge | Cross-Chain Bounty Specialist |
-| 4 | Lender | DeFi / Lending Protocol Specialist |
-| 5 | Gas Requester | Gas Cost Estimator & SDK Dev |
-| 6 | Solana Ghost | Solana / Rust / Anchor Specialist |
-| 7 | Minter | EVM Smart Contract Specialist |
-| 8 | Watchdog | Independent Security Auditor |
-| 9 | Broadcaster | Submission Formatter |
-| 10 | Boss | Pipeline Orchestrator |
-| 11 | Closer | Bounty Platform Scout |
+### The 12 Mercenary Agents
+
+| ID | Codename | Specialty & Architectural Role |
+|----|----------|--------------------------------|
+| 1 | Scanner | Real Bug Bounty Source Scraper & Intake |
+| 2 | Accountant | Financial ROI Evaluator & Neon Handoff Submitter |
+| 3 | Bridge | Cross-Chain / Bridge Vulnerability Specialist |
+| 4 | Lender | DeFi & Lending Protocol Specialist |
+| 5 | Gas Requester | Gas Estimator & Dev Tooling Specialist |
+| 6 | Solana Ghost | Solana / Rust / Anchor Security Specialist |
+| 7 | Minter | EVM & Solidity Smart Contract Specialist |
+| 8 | Watchdog | Private Sandbox Builder, Firewall Guard & Sandbox Teardown Auditor |
+| 9 | Broadcaster | Platform Submission Formatter (Immunefi, Code4rena, Sherlock, disclose.io) |
+| 10 | Boss | Pipeline Orchestrator & 3-Trial Unanimous Consensus Verifier |
+| 11 | Closer | Bounty Platform Scout & State Machine Gatekeeper |
+| 12 | Evidence | Forensics Evidence Collector & SHA-256 Chain-of-Evidence Builder |
 
 ---
 
 ## Infrastructure
 
-- **Compute**: GitHub Actions (free tier, 2000 min/month)
-- **LLM**: Groq API free tier (llama-3.1-8b-instant)
-- **Database**: Neon Postgres (`bounty_` table prefix)
+- **Compute**: GitHub Actions / Cloud Runner
+- **LLM**: Groq API free tier / Ollama local
+- **Database**: Neon Postgres (`bounty_` table prefix & `bbb_fleet_handoff`)
 - **Cache**: Upstash Redis (`bounty:` key prefix)
-- **Payout**: Splits.org Mercenary Vault
+- **Payout**: Splits.org Mercenary Vault (`0xc87c3e8CB21e5A630Baf8D38b2060aCBb047afCb`)
 
 ---
 
@@ -69,3 +91,4 @@ See [MCLS_v2_LICENSE.md](./MCLS_v2_LICENSE.md) for full terms.
 ---
 
 *Copyright (c) 2026 Blade Yerby. All Rights Reserved.*
+

@@ -1,11 +1,11 @@
 name: "Bounty Pipeline"
 on:
   schedule:
-    - cron: '0 */3 * * *'   # Every 3 hours (8 hunts/day)
+    - cron: '*/85 * * * *'   # Every 85 minutes (~17 runs/day)
   workflow_dispatch:          # Manual trigger for testing
     inputs:
       target_platform:
-        description: 'Target platform (all, algora, github, immunefi)'
+        description: 'Target platform tier (all, tier1, tier2, tier3, tier4, immunefi, code4rena, sherlock, disclose, openbugbounty)'
         required: false
         default: 'all'
 
@@ -17,21 +17,21 @@ permissions:
 jobs:
   hunt:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - name: "Checkout"
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: "Setup Python"
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: "Install Dependencies"
         run: pip install -r requirements.txt
 
-      - name: "Run Bounty Pipeline"
-        run: python -m agents.b2_10_boss
+      - name: "Run Bounty Pipeline (17 Daily Cycles Runner)"
+        run: python run_bounty_16_cycles.py
         env:
           PYTHONPATH: .
           NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
@@ -45,8 +45,9 @@ jobs:
       - name: "Pipeline Summary"
         if: always()
         run: |
-          echo "## Bounty Pipeline Results" >> $GITHUB_STEP_SUMMARY
+          echo "## BBB Fleet 2 Bounty Pipeline Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **Run Time**: $(date -u)" >> $GITHUB_STEP_SUMMARY
           echo "- **Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Platform**: ${{ github.event.inputs.target_platform || 'all' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Platform Selection**: ${{ github.event.inputs.target_platform || 'all' }}" >> $GITHUB_STEP_SUMMARY
+
