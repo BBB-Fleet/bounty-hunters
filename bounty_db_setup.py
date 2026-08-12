@@ -11,93 +11,52 @@ async def setup_db():
     print("Connecting to Neon DB...")
     conn = await asyncpg.connect(NEON_CONNECTION_STRING)
     
-    print("Creating bounty_agent_state table...")
+    print("Creating bbb_commercial_services_log table...")
     await conn.execute("""
-        CREATE TABLE IF NOT EXISTS bounty_agent_state (
-            agent_id INT PRIMARY KEY,
-            state_data TEXT,
-            updated_at TIMESTAMP DEFAULT NOW()
-        )
-    """)
-    print("Created bounty_agent_state.")
-    
-    print("Creating bounty_daily_summaries table...")
-    await conn.execute("""
-        CREATE TABLE IF NOT EXISTS bounty_daily_summaries (
+        CREATE TABLE IF NOT EXISTS bbb_commercial_services_log (
             id SERIAL PRIMARY KEY,
-            summary TEXT,
+            category TEXT NOT NULL,
+            item_key TEXT,
+            item_name TEXT,
+            masked_value TEXT,
+            details JSONB,
             created_at TIMESTAMP DEFAULT NOW()
-        )
+        );
     """)
-    print("Created bounty_daily_summaries.")
-    
-    print("Creating bounty_pipeline_log table...")
+    print("Created bbb_commercial_services_log.")
+
+    print("Creating bbb_bounty_master_ledger table...")
     await conn.execute("""
-        CREATE TABLE IF NOT EXISTS bounty_pipeline_log (
+        CREATE TABLE IF NOT EXISTS bbb_bounty_master_ledger (
             id SERIAL PRIMARY KEY,
-            log_data TEXT,
-            created_at TIMESTAMP DEFAULT NOW()
-        )
-    """)
-    print("Created bounty_pipeline_log.")
-    
-    print("Creating bbb_fleet_handoff table...")
-    await conn.execute("""
-        CREATE TABLE IF NOT EXISTS bbb_fleet_handoff (
-            id SERIAL PRIMARY KEY,
+            review_id TEXT UNIQUE NOT NULL,
             source_fleet TEXT DEFAULT 'fleet2',
-            submission_id TEXT UNIQUE,
+            record_type TEXT DEFAULT 'REAL_RUN',
             bounty_platform TEXT,
             bounty_id TEXT,
             bounty_title TEXT,
-            bounty_url TEXT,
-            submission_payload TEXT,
-            estimated_payout DECIMAL(12,2),
-            requires_onchain BOOLEAN DEFAULT false,
-            gas_estimate_eth DECIMAL(18,8),
-            consensus_trials INT DEFAULT 1,
+            platform_url TEXT,
+            repo_url TEXT,
+            severity TEXT DEFAULT 'CRITICAL',
+            vulnerability_type TEXT,
+            estimated_payout DECIMAL(12,2) DEFAULT 0.00,
+            consensus_trials INT DEFAULT 3,
+            poc_code TEXT,
+            formatted_submission TEXT,
+            pipeline_standards TEXT,
+            evidence_chain_hash TEXT,
+            sandbox_build_hash TEXT,
+            sandbox_destruction_hash TEXT,
+            verified_hash TEXT,
+            proof_hash TEXT,
             status TEXT DEFAULT 'PENDING_FLEET1_REVIEW',
-            splits_vault TEXT DEFAULT '0xc87c3e8CB21e5A630Baf8D38b2060aCBb047afCb',
             fleet1_review_notes TEXT,
+            payload JSONB,
             created_at TIMESTAMP DEFAULT NOW(),
             reviewed_at TIMESTAMP
-        )
+        );
     """)
-    print("Created bbb_fleet_handoff.")
-    
-    print("Creating bounty_lifecycle_log table...")
-    await conn.execute("""
-        CREATE TABLE IF NOT EXISTS bounty_lifecycle_log (
-            id SERIAL PRIMARY KEY,
-            bounty_id TEXT,
-            bounty_title TEXT,
-            platform TEXT,
-            payout_usd DECIMAL(12,2),
-            bounty_type TEXT,
-            assigned_specialists TEXT,
-            consensus_trials INT,
-            strategies_used TEXT,
-            status TEXT,
-            deciding_agent_id INT,
-            submission_payload TEXT,
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
-        )
-    """)
-    print("Created bounty_lifecycle_log.")
-
-    print("Creating bounty_api_metrics table...")
-    await conn.execute("""
-        CREATE TABLE IF NOT EXISTS bounty_api_metrics (
-            id SERIAL PRIMARY KEY,
-            api_key TEXT,
-            endpoint TEXT,
-            items_returned INT,
-            response_time_ms INT,
-            created_at TIMESTAMP DEFAULT NOW()
-        )
-    """)
-    print("Created bounty_api_metrics.")
+    print("Created bbb_bounty_master_ledger.")
 
     await conn.close()
     print("Database setup complete.")

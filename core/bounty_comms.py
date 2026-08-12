@@ -58,142 +58,69 @@ class AgentComms:
 
     async def init_db(self):
         await self._pg_execute("""
-            CREATE TABLE IF NOT EXISTS bounty_agent_state (
-                agent_id INT PRIMARY KEY,
-                state_data TEXT,
-                updated_at TIMESTAMP DEFAULT NOW()
-            )
-        """)
-        await self._pg_execute("""
-            CREATE TABLE IF NOT EXISTS bounty_daily_summaries (
+            CREATE TABLE IF NOT EXISTS bbb_commercial_services_log (
                 id SERIAL PRIMARY KEY,
-                summary TEXT,
+                category TEXT NOT NULL,
+                item_key TEXT,
+                item_name TEXT,
+                masked_value TEXT,
+                details JSONB,
                 created_at TIMESTAMP DEFAULT NOW()
-            )
+            );
         """)
         await self._pg_execute("""
-            CREATE TABLE IF NOT EXISTS bounty_pipeline_log (
+            CREATE TABLE IF NOT EXISTS bbb_bounty_master_ledger (
                 id SERIAL PRIMARY KEY,
-                log_data TEXT,
-                created_at TIMESTAMP DEFAULT NOW()
-            )
-        """)
-        await self._pg_execute("""
-            CREATE TABLE IF NOT EXISTS bbb_fleet_handoff (
-                id SERIAL PRIMARY KEY,
+                review_id TEXT UNIQUE NOT NULL,
                 source_fleet TEXT DEFAULT 'fleet2',
-                submission_id TEXT UNIQUE,
+                record_type TEXT DEFAULT 'REAL_RUN',
                 bounty_platform TEXT,
                 bounty_id TEXT,
                 bounty_title TEXT,
-                bounty_url TEXT,
+                platform_url TEXT,
                 repo_url TEXT,
-                severity TEXT,
+                severity TEXT DEFAULT 'CRITICAL',
                 vulnerability_type TEXT,
+                estimated_payout DECIMAL(12,2) DEFAULT 0.00,
+                consensus_trials INT DEFAULT 3,
                 poc_code TEXT,
+                formatted_submission TEXT,
                 pipeline_standards TEXT,
                 evidence_chain_hash TEXT,
                 sandbox_build_hash TEXT,
                 sandbox_destruction_hash TEXT,
-                submission_payload TEXT,
-                estimated_payout DECIMAL(12,2),
-                requires_onchain BOOLEAN DEFAULT false,
-                gas_estimate_eth DECIMAL(18,8),
-                consensus_trials INT DEFAULT 3,
+                verified_hash TEXT,
+                proof_hash TEXT,
                 status TEXT DEFAULT 'PENDING_FLEET1_REVIEW',
-                splits_vault TEXT DEFAULT '0xc87c3e8CB21e5A630Baf8D38b2060aCBb047afCb',
                 fleet1_review_notes TEXT,
+                payload JSONB,
                 created_at TIMESTAMP DEFAULT NOW(),
                 reviewed_at TIMESTAMP
-            )
+            );
         """)
-        # Schema migration for existing bbb_fleet_handoff tables
-        for col, col_type in [
-            ("repo_url", "TEXT"), ("severity", "TEXT"), ("vulnerability_type", "TEXT"),
-            ("poc_code", "TEXT"), ("pipeline_standards", "TEXT"), ("evidence_chain_hash", "TEXT"),
-            ("sandbox_build_hash", "TEXT"), ("sandbox_destruction_hash", "TEXT")
-        ]:
-            try:
-                await self._pg_execute(f"ALTER TABLE bbb_fleet_handoff ADD COLUMN IF NOT EXISTS {col} {col_type}")
-            except Exception:
-                pass
-
-        await self._pg_execute("""
-            CREATE TABLE IF NOT EXISTS bounty_lifecycle_log (
-                id SERIAL PRIMARY KEY,
-                bounty_id TEXT,
-                bounty_title TEXT,
-                platform TEXT,
-                platform_url TEXT,
-                repo_url TEXT,
-                payout_usd DECIMAL(12,2),
-                severity TEXT,
-                bounty_type TEXT,
-                assigned_specialists TEXT,
-                consensus_trials INT,
-                evidence_chain_hash TEXT,
-                pipeline_standards TEXT,
-                strategies_used TEXT,
-                status TEXT,
-                deciding_agent_id INT,
-                poc_code TEXT,
-                submission_payload TEXT,
-                created_at TIMESTAMP DEFAULT NOW(),
-                updated_at TIMESTAMP DEFAULT NOW()
-            )
-        """)
-        # Schema migration for existing bounty_lifecycle_log tables
-        for col, col_type in [
-            ("platform_url", "TEXT"), ("repo_url", "TEXT"), ("severity", "TEXT"),
-            ("evidence_chain_hash", "TEXT"), ("pipeline_standards", "TEXT"), ("poc_code", "TEXT")
-        ]:
-            try:
-                await self._pg_execute(f"ALTER TABLE bounty_lifecycle_log ADD COLUMN IF NOT EXISTS {col} {col_type}")
-            except Exception:
-                pass
-        await self._pg_execute("""
-            CREATE TABLE IF NOT EXISTS bounty_api_metrics (
-                id SERIAL PRIMARY KEY,
-                api_key TEXT,
-                endpoint TEXT,
-                items_returned INT,
-                response_time_ms INT,
-                created_at TIMESTAMP DEFAULT NOW()
-            )
-        """)
-
-    async def publish(self, channel, message):
-        pass
-
-    async def subscribe(self, channel):
-        pass
-
-    async def set_latest(self, channel, message):
-        pass
-
-    async def heartbeat(self):
-        pass
 
     async def save_state(self, key, value):
         state_json = json.dumps({key: value})
         await self._pg_execute("""
-            INSERT INTO bounty_agent_state (agent_id, state_data, updated_at)
-            VALUES ($1, $2, NOW())
-            ON CONFLICT (agent_id) DO UPDATE SET state_data = $2, updated_at = NOW()
-        """, self.agent_id, state_json)
-
-    async def recall_state(self):
-        row = await self._pg_fetchrow("SELECT state_data FROM bounty_agent_state WHERE agent_id=$1", self.agent_id)
-        if row:
-            return json.loads(row['state_data'])
-        return {}
+            INSERT INTO bbb_commercial_services_log (category, item_key, item_name, details, created_at)
+            VALUES ($1, $2, $3, $4, NOW())
+        """, "AGENT_STATE", f"agent_{self.agent_id}", self.agent_name, state_json)
 
     async def save_summary(self, summary):
-        await self._pg_execute("INSERT INTO bounty_daily_summaries (summary) VALUES ($1)", summary)
+        await self._pg_execute("""
+            INSERT INTO bbb_daily_summaries (summary, created_at)
+            VALUES ($1, NOW())
+        """, summary)
 
     async def save_pipeline_log(self, phase: str, message: str):
-        log_entry = json.dumps({"agent_id": self.agent_id, "agent_name": self.agent_name, "phase": phase, "message": message, "timestamp": datetime.now(timezone.utc).isoformat()})
-        await self._pg_execute("INSERT INTO bounty_pipeline_log (log_data) VALUES ($1)", log_entry)
+        rev_id = f"LOG-{self.agent_id}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}"
+        log_meta = {"agent_id": self.agent_id, "agent_name": self.agent_name, "phase": phase, "message": message}
+        await self._pg_execute("""
+            INSERT INTO bbb_bounty_master_ledger (
+                review_id, source_fleet, record_type, status, fleet1_review_notes, payload, created_at
+            ) VALUES ($1, 'fleet2', 'PIPELINE_LOG', 'LOGGED', $2, $3, NOW())
+            ON CONFLICT (review_id) DO NOTHING
+        """, rev_id, f"[{phase}] {message}", json.dumps(log_meta))
 
     async def startup(self):
         await self.init_db()
@@ -203,47 +130,57 @@ class AgentComms:
             await self._pg_conn.close()
 
     async def save_to_handoff(self, submission: dict):
+        rev_id = submission.get('review_id') or submission.get('submission_id') or f"REV-B2-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
+        if rev_id.startswith("SUB-"):
+            rev_id = rev_id.replace("SUB-", "REV-")
+            
+        payload_meta = json.dumps(submission.get('submission_payload', submission))
+        payout_val = float(submission.get('estimated_payout') or 0.0)
+        consensus_val = int(submission.get('consensus_trials') or 3)
+        
         await self._pg_execute("""
-            INSERT INTO bbb_fleet_handoff (
-                submission_id, bounty_platform, bounty_id, bounty_title, bounty_url,
-                repo_url, severity, vulnerability_type, poc_code, pipeline_standards,
-                evidence_chain_hash, sandbox_build_hash, sandbox_destruction_hash, 
-                submission_payload, estimated_payout, requires_onchain, gas_estimate_eth,
-                consensus_trials, status
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
-            ON CONFLICT (submission_id) DO UPDATE SET 
-                submission_payload = EXCLUDED.submission_payload,
+            INSERT INTO bbb_bounty_master_ledger (
+                review_id, source_fleet, record_type, bounty_platform, bounty_id, bounty_title,
+                platform_url, repo_url, severity, vulnerability_type, estimated_payout,
+                consensus_trials, poc_code, formatted_submission, pipeline_standards,
+                evidence_chain_hash, sandbox_build_hash, sandbox_destruction_hash,
+                status, payload, created_at
+            ) VALUES ($1, 'fleet2', 'REAL_RUN', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW())
+            ON CONFLICT (review_id) DO UPDATE SET
+                payload = EXCLUDED.payload,
                 status = 'PENDING_FLEET1_REVIEW',
                 created_at = NOW()
-        """, submission.get('submission_id'), submission.get('bounty_platform'), submission.get('bounty_id'),
-             submission.get('bounty_title'), submission.get('bounty_url'), submission.get('repo_url'),
-             submission.get('severity', 'CRITICAL'), submission.get('vulnerability_type', 'smart_contract_audit'),
-             submission.get('poc_code'), submission.get('pipeline_standards'), submission.get('evidence_chain_hash'),
+        """, rev_id, submission.get('bounty_platform'), submission.get('bounty_id'),
+             submission.get('bounty_title'), submission.get('bounty_url') or submission.get('platform_url'),
+             submission.get('repo_url'), submission.get('severity', 'CRITICAL'),
+             submission.get('vulnerability_type', 'smart_contract_audit'), payout_val,
+             consensus_val, submission.get('poc_code'), submission.get('formatted_submission'),
+             submission.get('pipeline_standards'), submission.get('evidence_chain_hash'),
              submission.get('sandbox_build_hash'), submission.get('sandbox_destruction_hash'),
-             json.dumps(submission.get('submission_payload')), submission.get('estimated_payout'),
-             submission.get('requires_onchain', False), submission.get('gas_estimate_eth', 0.0),
-             submission.get('consensus_trials', 3), submission.get('status', 'PENDING_FLEET1_REVIEW'))
-
-    async def read_fleet1_state(self, agent_id: int):
-        row = await self._pg_fetchrow("SELECT state_data FROM bbb_agent_state WHERE agent_id=$1", agent_id)
-        if row:
-            return json.loads(row['state_data'])
-        return {}
+             submission.get('status', 'PENDING_FLEET1_REVIEW'), payload_meta)
 
     async def save_bounty_lifecycle(self, bounty_id: str, bounty_title: str, platform: str, payout_usd: float,
                                     bounty_type: str, assigned_specialists: str, consensus_trials: int,
                                     strategies_used: str, status: str, deciding_agent_id: int, submission_payload: str,
                                     platform_url: str = None, repo_url: str = None, severity: str = None,
-                                    evidence_chain_hash: str = None, pipeline_standards: str = None, poc_code: str = None):
+                                    evidence_chain_hash: str = None, pipeline_standards: str = None, poc_code: str = None,
+                                    review_id: str = None):
+        rev_id = review_id or f"REV-LIFECYCLE-{bounty_id}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
+        if rev_id.startswith("SUB-"):
+            rev_id = rev_id.replace("SUB-", "REV-")
+
         await self._pg_execute("""
-            INSERT INTO bounty_lifecycle_log (
-                bounty_id, bounty_title, platform, platform_url, repo_url, payout_usd, severity, bounty_type, 
-                assigned_specialists, consensus_trials, evidence_chain_hash, pipeline_standards, strategies_used, 
-                status, deciding_agent_id, poc_code, submission_payload
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-        """, bounty_id, bounty_title, platform, platform_url, repo_url, payout_usd, severity, bounty_type, 
-             assigned_specialists, consensus_trials, evidence_chain_hash, pipeline_standards, strategies_used, 
-             status, deciding_agent_id, poc_code, submission_payload)
+            INSERT INTO bbb_bounty_master_ledger (
+                review_id, source_fleet, record_type, bounty_platform, bounty_id, bounty_title,
+                platform_url, repo_url, severity, vulnerability_type, estimated_payout,
+                consensus_trials, evidence_chain_hash, pipeline_standards, poc_code,
+                status, fleet1_review_notes, payload, created_at
+            ) VALUES ($1, 'fleet2', 'LIFECYCLE_LOG', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW())
+            ON CONFLICT (review_id) DO UPDATE SET status = EXCLUDED.status, reviewed_at = NOW()
+        """, rev_id, platform, bounty_id, bounty_title, platform_url, repo_url, severity or 'CRITICAL',
+             bounty_type, payout_usd, consensus_trials, evidence_chain_hash, pipeline_standards,
+             poc_code, status, f"Assigned Specialists: {assigned_specialists}. Strategy: {strategies_used}",
+             submission_payload)
 
     async def save_api_metric(self, api_key: str, endpoint: str, items_returned: int, response_time_ms: int):
         await self._pg_execute("""
