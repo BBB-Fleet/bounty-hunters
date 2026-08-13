@@ -57,9 +57,11 @@ BOUNTY_PLATFORMS = {
     'openbugbounty': 'https://openbugbounty.org',
     'huntbug': 'https://huntbug.com',
     'bountiesalert': 'https://bountiesalert.com',
+    'Bugcrowd': 'https://bugcrowd.com',
+    'HackerOne': 'https://hackerone.com',
     'immunefi': 'https://immunefi.com',
     'code4rena': 'https://code4rena.com',
-    'sherlock': 'https://sherlock.xyz'
+    'sherlock': 'https://sherlock.xyz',
 }
 
 MAX_CONSENSUS_TRIALS = 3
