@@ -64,7 +64,37 @@ BOUNTY_PLATFORMS = {
     'sherlock': 'https://sherlock.xyz',
 }
 
-MAX_CONSENSUS_TRIALS = 3
+TARGET_DISCOVERY_RULES = {
+    "required_fields": [
+        "platform",
+        "program_name",
+        "platform_url",
+        "reward_info",
+        "scope",
+        "repo_url"
+    ],
+
+    "disallowed_generated_fields": [
+        "fake_vulnerability",
+        "fake_severity",
+        "fake_payout"
+    ],
+
+    "minimum_evidence": [
+        "public_program_page",
+        "public_scope_page",
+        "bounty_name"
+    ],
+
+    "extract": [
+        "repositories",
+        "documentation",
+        "contracts",
+        "targets",
+        "assets",
+        "reward_ranges"
+    ]
+}
 
 BOUNTY_TYPES = [
     'smart_contract_audit',
@@ -93,7 +123,7 @@ CYCLE_INTERVAL_MINUTES = 85
 # Legacy compatibility
 RUNS_PER_DAY = TOTAL_DAILY_RUNS
 
-# === Fleet 2: Daily Practice Repository Arena (Curated Targets Pool) ===
+# === Fleet 2: Daily Practice/Example Repository Arena (Curated Target) ===
 FLEET2_PRACTICE_CATALOG = [
     {
         "id": "B2-PRAC-001",
@@ -102,49 +132,7 @@ FLEET2_PRACTICE_CATALOG = [
         "repo_url": "https://github.com/OpenZeppelin/ethernaut",
         "vulnerability_types": ["Reentrancy", "Access Control Bypass", "Fallback Function Misconfiguration"],
         "target_file": "contracts/levels/Reentrancy.sol"
-    },
-    {
-        "id": "B2-PRAC-002",
-        "name": "Damn Vulnerable DeFi - Unstoppable Vault Flaw",
-        "category": "DeFi Flash Loan Vulnerability",
-        "repo_url": "https://github.com/tinchoabbate/damn-vulnerable-defi",
-        "vulnerability_types": ["Flash Loan Denial of Service", "Strict Balance Assertion", "State Desynchronization"],
-        "target_file": "contracts/unstoppable/UnstoppableVault.sol"
-    },
-    {
-        "id": "B2-PRAC-003",
-        "name": "OWASP Web3 - Price Oracle Front-Running",
-        "category": "DeFi Price Feed Security",
-        "repo_url": "https://github.com/OWASP/www-project-web3-security-testing-guide",
-        "vulnerability_types": ["Oracle Manipulation", "Spot Price Slippage Exploit", "Stale Feed Usage"],
-        "target_file": "challenges/oracle_manipulation.sol"
-    },
-    {
-        "id": "B2-PRAC-004",
-        "name": "OpenZeppelin Account Abstraction - Paymaster Signature Bypass",
-        "category": "ERC-4337 Smart Account Security",
-        "repo_url": "https://github.com/eth-infinitism/account-abstraction",
-        "vulnerability_types": ["Paymaster Signature Validation Failure", "Gas Drainage Exploit", "Replay Attack"],
-        "target_file": "contracts/core/BasePaymaster.sol"
-    },
-    {
-        "id": "B2-PRAC-005",
-        "name": "Solana Anchor - Discriminator & Owner Check Bypass",
-        "category": "Solana Rust Security",
-        "repo_url": "https://github.com/coral-xyz/anchor",
-        "vulnerability_types": ["Account Owner Validation Missing", "Anchor Discriminator Mismatch", "Signer Check Bypass"],
-        "target_file": "programs/system/src/lib.rs"
     }
-]
-
-# === Fleet 2: Vulnerability-First Discovery Guidelines ===
-VULNERABILITY_DISCOVERY_RULES = """
-FLEET 2 MISSION DIRECTIVE: Target real bug bounties from the 12 Master AI-Friendly Sources (Tier 1..4).
-- 17 Daily Runs: 1 Practice Run + 16 Real Vulnerability Discovery Runs.
-- WATCHDOG: Creates private sandbox, guards against data leakage, verifies PoC, wipes sandbox.
-- BOSS: Enforces 3-Trial Triple-Agreement Consensus (Trial 1: Execution, Trial 2: Peer Agreement, Trial 3: Unanimous Affirmation).
-- BROADCASTER (Agent 9): Formats report to exact platform PDF standards.
-- ACCOUNTANT (Agent 2): Signs off on financial ROI and commits to Neon `bbb_bounty_master_ledger`.
 """
 
 
