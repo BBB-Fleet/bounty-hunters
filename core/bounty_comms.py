@@ -113,14 +113,14 @@ class AgentComms:
         """, summary)
 
     async def save_pipeline_log(self, phase: str, message: str):
-        rev_id = f"LOG-{self.agent_id}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}"
+        print(f"[Agent {self.agent_id} ({self.agent_name})] [{phase}] {message}")
         log_meta = {"agent_id": self.agent_id, "agent_name": self.agent_name, "phase": phase, "message": message}
+        item_key = f"log_{self.agent_id}_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}"
         await self._pg_execute("""
-            INSERT INTO bbb_bounty_master_ledger (
-                review_id, source_fleet, record_type, status, fleet1_review_notes, payload, created_at
-            ) VALUES ($1, 'fleet2', 'PIPELINE_LOG', 'LOGGED', $2, $3, NOW())
-            ON CONFLICT (review_id) DO NOTHING
-        """, rev_id, f"[{phase}] {message}", json.dumps(log_meta))
+            INSERT INTO bbb_commercial_services_log (
+                category, item_key, item_name, details, created_at
+            ) VALUES ('PIPELINE_LOG', $1, $2, $3, NOW())
+        """, item_key, f"[{phase}] {self.agent_name}", json.dumps(log_meta))
 
     async def startup(self):
         await self.init_db()
@@ -137,6 +137,7 @@ class AgentComms:
         payload_meta = json.dumps(submission.get('submission_payload', submission))
         payout_val = float(submission.get('estimated_payout') or 0.0)
         consensus_val = int(submission.get('consensus_trials') or 3)
+        rec_type = submission.get('record_type', 'REAL_RUN')
         
         await self._pg_execute("""
             INSERT INTO bbb_bounty_master_ledger (
@@ -145,12 +146,12 @@ class AgentComms:
                 consensus_trials, poc_code, formatted_submission, pipeline_standards,
                 evidence_chain_hash, sandbox_build_hash, sandbox_destruction_hash,
                 status, payload, created_at
-            ) VALUES ($1, 'fleet2', 'REAL_RUN', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW())
+            ) VALUES ($1, 'fleet2', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW())
             ON CONFLICT (review_id) DO UPDATE SET
                 payload = EXCLUDED.payload,
                 status = 'PENDING_FLEET1_REVIEW',
                 created_at = NOW()
-        """, rev_id, submission.get('bounty_platform'), submission.get('bounty_id'),
+        """, rev_id, rec_type, submission.get('bounty_platform'), submission.get('bounty_id'),
              submission.get('bounty_title'), submission.get('bounty_url') or submission.get('platform_url'),
              submission.get('repo_url'), submission.get('severity', 'CRITICAL'),
              submission.get('vulnerability_type', 'smart_contract_audit'), payout_val,
@@ -181,11 +182,5 @@ class AgentComms:
              bounty_type, payout_usd, consensus_trials, evidence_chain_hash, pipeline_standards,
              poc_code, status, f"Assigned Specialists: {assigned_specialists}. Strategy: {strategies_used}",
              submission_payload)
-
-    async def save_api_metric(self, api_key: str, endpoint: str, items_returned: int, response_time_ms: int):
-        await self._pg_execute("""
-            INSERT INTO bounty_api_metrics (api_key, endpoint, items_returned, response_time_ms)
-            VALUES ($1, $2, $3, $4)
-        """, api_key, endpoint, items_returned, response_time_ms)
 
 BountyComms = AgentComms

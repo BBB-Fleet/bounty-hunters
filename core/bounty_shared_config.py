@@ -79,7 +79,7 @@ SPECIALIST_MAPPING = {
     'cross_chain_bridge': 3,
     'solana_rust': 6,
     'sdk_tooling': 5,
-    'web_vulnerability': 1
+    'web_vulnerability': 7
 }
 
 # === Fleet 2: 17 Daily Runs Schedule (1 Practice Run + 16 Real Vulnerability Runs) ===
@@ -142,7 +142,7 @@ FLEET 2 MISSION DIRECTIVE: Target real bug bounties from the 12 Master AI-Friend
 - WATCHDOG: Creates private sandbox, guards against data leakage, verifies PoC, wipes sandbox.
 - BOSS: Enforces 3-Trial Triple-Agreement Consensus (Trial 1: Execution, Trial 2: Peer Agreement, Trial 3: Unanimous Affirmation).
 - BROADCASTER (Agent 9): Formats report to exact platform PDF standards.
-- ACCOUNTANT (Agent 2): Signs off on financial ROI and commits to Neon `bbb_fleet_handoff`.
+- ACCOUNTANT (Agent 2): Signs off on financial ROI and commits to Neon `bbb_bounty_master_ledger`.
 """
 
 

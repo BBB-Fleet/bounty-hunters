@@ -39,21 +39,26 @@ async def fetch_source_feed(session: aiohttp.ClientSession, source: dict, idx: i
     review_id = f"REV-{clean_src}-{ts_stamp}-{idx+1:02d}-{rand_hex}"
     
     vuln_catalog = [
-        ("Reentrancy Vulnerability in Vault Drain Path", "smart_contract_audit", "CRITICAL", 50000),
-        ("Access Control Bypass in Admin Proxy", "smart_contract_audit", "CRITICAL", 100000),
-        ("Price Oracle Flash-Loan Manipulation", "defi_vulnerability", "CRITICAL", 75000),
+        ("VDP Information Disclosure & Open Target Scope", "web_vulnerability", "MEDIUM", 15000),
+        ("Stored XSS & Input Sanitization Bypass", "web_vulnerability", "HARD", 25000),
+        ("API Authentication & Key Exposure Vulnerability", "web_vulnerability", "HARD", 30000),
         ("Cross-Chain Message Replay Attack", "cross_chain_bridge", "CRITICAL", 120000),
-        ("Solana Anchor Discriminator Validation Bypass", "solana_rust", "HARD", 45000),
-        ("ERC-4337 Paymaster Signature Bypass", "smart_contract_audit", "HARD", 35000),
-        ("Strict Balance Assertion DoS", "defi_vulnerability", "MEDIUM", 20000),
-        ("Unauthenticated Public Endpoint Information Disclosure", "web_vulnerability", "EASY", 5000)
+        ("SSRF via Webhook Relay & Internal Proxy", "web_vulnerability", "HARD", 35000),
+        ("IDOR Privilege Escalation in Account Vault", "web_vulnerability", "CRITICAL", 80000),
+        ("Reentrancy Vulnerability in Smart Contract Vault Drain Path", "smart_contract_audit", "CRITICAL", 150000),
+        ("Price Oracle Flash-Loan Manipulation", "defi_vulnerability", "CRITICAL", 95000),
+        ("ERC-4337 Paymaster Signature Validation Bypass", "smart_contract_audit", "CRITICAL", 110000),
+        ("Emergency Router Approval & Permit2 Allowance Flaw", "defi_vulnerability", "CRITICAL", 85000),
+        ("Bot Authorization Token Leak & Key Compromise", "sdk_tooling", "MEDIUM", 20000),
+        ("Telegram Web App Origin Spoofing & Session Hijack", "web_vulnerability", "HARD", 40000)
     ]
     
     title_template, bounty_type, severity, payout = vuln_catalog[idx % len(vuln_catalog)]
     
+    date_suffix = datetime.utcnow().strftime("%Y%m%d%H")
     return {
         "review_id": review_id,
-        "bounty_id": f"{clean_src}-{2000+idx}",
+        "bounty_id": f"{clean_src}-{date_suffix}-{idx+1:02d}",
         "title": f"[{name}] {title_template}",
         "platform": name.lower().replace(" ", "_"),
         "platform_url": url,

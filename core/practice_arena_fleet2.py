@@ -142,29 +142,27 @@ async def review_and_file_practice_submission(
             clean_conn_str = NEON_CONNECTION_STRING.split('?')[0] if '?' in NEON_CONNECTION_STRING else NEON_CONNECTION_STRING
             conn = await asyncpg.connect(clean_conn_str, ssl=ssl_ctx)
             
+            rev_id = f"REV-PRACTICE-{target_repo['id']}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            payload_json = json.dumps({
+                "agent_id": agent_id,
+                "agent_name": agent_name,
+                "target": target_repo,
+                "submission": agent_vulnerabilities_found[:1000],
+                "boss_feedback": feedback[:1000],
+                "proof_hash": proof_hash,
+                "pdf_path": pdf_path
+            })
             await conn.execute("""
-                CREATE TABLE IF NOT EXISTS b2_practice_audits (
-                    id SERIAL PRIMARY KEY,
-                    agent_id INT NOT NULL,
-                    agent_name TEXT NOT NULL,
-                    repo_id TEXT NOT NULL,
-                    repo_name TEXT NOT NULL,
-                    submission_text TEXT NOT NULL,
-                    boss_feedback TEXT NOT NULL,
-                    proof_hash TEXT NOT NULL,
-                    pdf_path TEXT NOT NULL,
-                    created_at TIMESTAMP DEFAULT NOW()
-                )
-            """)
-            
-            await conn.execute("""
-                INSERT INTO b2_practice_audits
-                (agent_id, agent_name, repo_id, repo_name, submission_text, boss_feedback, proof_hash, pdf_path)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            """, agent_id, agent_name, target_repo["id"], target_repo["name"], agent_vulnerabilities_found[:1000], feedback[:1000], proof_hash, pdf_path)
+                INSERT INTO bbb_bounty_master_ledger (
+                    review_id, source_fleet, record_type, bounty_platform, bounty_id, bounty_title,
+                    platform_url, repo_url, severity, vulnerability_type, estimated_payout,
+                    consensus_trials, status, fleet1_review_notes, proof_hash, payload, created_at
+                ) VALUES ($1, 'fleet2', 'PRACTICE_RUN', 'practice_arena', $2, $3, $4, $5, 'PRACTICE', 'practice_audit', 0.0, 1, 'PRACTICE_COMPLETED', $6, $7, $8, NOW())
+                ON CONFLICT (review_id) DO UPDATE SET payload = EXCLUDED.payload, created_at = NOW()
+            """, rev_id, target_repo["id"], f"Practice Audit: {target_repo['name']}", target_repo["repo_url"], target_repo["repo_url"], feedback[:1000], proof_hash, payload_json)
             
             await conn.close()
-            print("[Fleet 2 Practice Arena] ✅ Saved practice audit record to Neon DB.")
+            print(f"[Fleet 2 Practice Arena] ✅ Saved practice audit record to `bbb_bounty_master_ledger`: {rev_id}")
         except Exception as e:
             print(f"[Fleet 2 Practice Arena] Neon log note: {e}")
 
