@@ -1,4 +1,5 @@
-name: "Bounty Pipeline"
+name: "BBB Fleet 2: Bounty Pipeline"
+
 on:
   schedule:
     - cron: '*/85 * * * *'   # Every 85 minutes (~17 runs/day)
@@ -10,27 +11,30 @@ on:
         default: 'all'
 
 permissions:
-  contents: write
-  pull-requests: write
-  issues: write
+  contents: read
 
 jobs:
   hunt:
+    name: "12-Source Bounty Intel & Audit Pipeline"
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
+
     steps:
-      - name: "Checkout"
+      - name: "Checkout Code"
         uses: actions/checkout@v4
 
-      - name: "Setup Python"
+      - name: "Setup Python Environment"
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
 
       - name: "Install Dependencies"
-        run: pip install -r requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: "Run Bounty Pipeline (17 Daily Cycles Runner)"
+      - name: "Run 12-Source Bounty Pipeline (17 Daily Cycles)"
         run: python run_bounty_16_cycles.py
         env:
           PYTHONPATH: .
@@ -40,14 +44,26 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SPLITS_VAULT: "0xc87c3e8CB21e5A630Baf8D38b2060aCBb047afCb"
-          TARGET_PLATFORM: ${{ github.event.inputs.target_platform || 'all' }}
+          TARGET_PLATFORM: ${{ inputs.target_platform || github.event.inputs.target_platform || 'all' }}
 
-      - name: "Pipeline Summary"
+      - name: "Upload Staged PDF Audit Reports"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fleet2-audit-reports
+          path: |
+            ~/Desktop/Practice Audits Fleet 2/*.pdf
+            ./*.pdf
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: "Pipeline Execution Summary"
         if: always()
         run: |
-          echo "## BBB Fleet 2 Bounty Pipeline Results" >> $GITHUB_STEP_SUMMARY
+          echo "## 🛡️ BBB Fleet 2 Bounty Pipeline Execution" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Run Time**: $(date -u)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Platform Selection**: ${{ github.event.inputs.target_platform || 'all' }}" >> $GITHUB_STEP_SUMMARY
-
+          echo "- **Execution Time**: $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Trigger**: \`${{ github.event_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Platforms Scanned**: 12 Master AI-Friendly Sources (Tiers 1–4)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Selected Tier/Platform**: \`${{ inputs.target_platform || github.event.inputs.target_platform || 'all' }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Ledger Destination**: Neon DB \`bbb_bounty_master_ledger\` (\`PENDING_FLEET1_REVIEW\`)" >> $GITHUB_STEP_SUMMARY
