@@ -190,6 +190,23 @@ async def main():
     result = await review_and_file_practice_submission(1, "B2 Scanner", target, sample_findings)
     print("\n[B2 Boss Practice Feedback Summary]:")
     print(result["feedback"])
+# Add this alias at the bottom of core/practice_arena_fleet2.py:
 
+    async def process_and_file_bounty_audit(target: dict, findings: str, run_type: str = "REAL_BOUNTY_RUN") -> dict:
+    """Unified handler for filing practice and real bounty audit reports."""
+    normalized_target = {
+        "id": target.get("id") or target.get("bounty_id", "TARGET-01"),
+        "name": target.get("name") or target.get("program_name", "Target Program"),
+        "repo_url": target.get("repo_url") or target.get("platform_url", "https://github.com"),
+        "target_file": target.get("target_file", "Scope Contracts/Source"),
+        "category": target.get("category") or target.get("bounty_type", "smart_contract_audit"),
+        "vulnerability_types": target.get("vulnerability_types", [target.get("bounty_type", "smart_contract_audit")]),
+    }
+    return await review_and_file_practice_submission(
+        agent_id=1,
+        agent_name="B2 Scanner",
+        target_repo=normalized_target,
+        agent_vulnerabilities_found=findings
+    )
 if __name__ == "__main__":
     asyncio.run(main())
