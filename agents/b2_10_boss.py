@@ -2,13 +2,6 @@
 BBB Fleet 2: Bounty Hunters — Agent 10: Boss (Orchestrator & Consensus Verifier)
 ===================================================================================
 Phase 4/5 agent. Oversees deterministic consensus verification and PoC compliance.
-Enforces:
-1. Doctrine PoC Compliance: Rejects dummy print-statement scripts without assertions.
-2. The 3-Trial Triple-Agreement Rule:
-   - Trial 1: Execution test (Did the PoC work? Exit code == 0).
-   - Trial 2: Component agreement (Do Specialist & Watchdog agree it works?).
-   - Trial 3: Final confirmation run (100% unanimous agreement across all 3 trials required).
-If any trial fails or consensus is not unanimous, the submission is DENIED and the fleet moves on.
 """
 
 import asyncio
@@ -27,15 +20,11 @@ BUG_BOUNTY_DOCTRINE = {
 
 
 def inspect_poc_compliance(poc_code: str) -> bool:
-    """
-    Enforces Doctrine rule: Rejects PoCs that are merely print-statement placeholders
-    or lack mathematical/state assertions.
-    """
+    """Enforces Doctrine rule: Rejects PoCs that are merely print-statement placeholders."""
     if not poc_code or not str(poc_code).strip():
         print(f"[{AGENT_NAME}] ❌ REJECTED: PoC code is empty.")
         return False
 
-    # Forbidden dummy/mock patterns
     forbidden_patterns = [
         "print(\"Exploit successful. Balances drained.\")",
         "def test_exploit(): pass",
@@ -50,12 +39,7 @@ def inspect_poc_compliance(poc_code: str) -> bool:
 
 
 def validate_triple_run_consensus(run_results: list) -> dict:
-    """
-    Evaluates 3 separate trial runs for strict consensus and determinism.
-    Rule 1: Execution check (did it work? exit_code == 0).
-    Rule 2: Peer agreement (do all agree?).
-    Rule 3: Unanimous trial 3 pass (100% agreement across all 3 trials required).
-    """
+    """Evaluates 3 separate trial runs for strict consensus and determinism."""
     if len(run_results) != 3:
         return {"consensus_passed": False, "error": f"Expected 3 trials, received {len(run_results)}"}
 
@@ -68,7 +52,6 @@ def validate_triple_run_consensus(run_results: list) -> dict:
             print(f"[{AGENT_NAME}] ❌ Trial {idx} DENIED by peer consensus. Moving on.")
             return {"consensus_passed": False, "error": f"Trial {idx} failed peer agreement."}
 
-    # Verify output hash consistency across all runs
     stdouts = [str(r.get("stdout", "")) for r in run_results]
     hashes = [hashlib.sha256(out.encode()).hexdigest() for out in stdouts]
 
