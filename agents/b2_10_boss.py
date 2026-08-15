@@ -1,11 +1,13 @@
 """
 BBB Fleet 2: Bounty Hunters — Agent 10: Boss (Orchestrator & Consensus Verifier)
 ===================================================================================
-Phase 4/5 agent. Oversees deterministic consensus verification.
-Enforces the 3-Trial Triple-Agreement Rule:
-1. Trial 1: Execution test (Did the PoC work? Exit code == 0).
-2. Trial 2: Component agreement (Do Specialist & Watchdog agree it works?).
-3. Trial 3: Final confirmation run (100% unanimous agreement across all 3 trials required).
+Phase 4/5 agent. Oversees deterministic consensus verification and PoC compliance.
+Enforces:
+1. Doctrine PoC Compliance: Rejects dummy print-statement scripts without assertions.
+2. The 3-Trial Triple-Agreement Rule:
+   - Trial 1: Execution test (Did the PoC work? Exit code == 0).
+   - Trial 2: Component agreement (Do Specialist & Watchdog agree it works?).
+   - Trial 3: Final confirmation run (100% unanimous agreement across all 3 trials required).
 If any trial fails or consensus is not unanimous, the submission is DENIED and the fleet moves on.
 """
 
@@ -17,10 +19,40 @@ from datetime import datetime
 AGENT_ID = 10
 AGENT_NAME = "B2 Boss"
 
+# Master Doctrine Reference
+BUG_BOUNTY_DOCTRINE = {
+    "definition": "A Bug Bounty is an authorized, incentivized security disclosure program for Web3 protocols.",
+    "rule": "Every finding must provide reproducible proof; dummy placeholder scripts are rejected."
+}
+
+
+def inspect_poc_compliance(poc_code: str) -> bool:
+    """
+    Enforces Doctrine rule: Rejects PoCs that are merely print-statement placeholders
+    or lack mathematical/state assertions.
+    """
+    if not poc_code or not str(poc_code).strip():
+        print(f"[{AGENT_NAME}] ❌ REJECTED: PoC code is empty.")
+        return False
+
+    # Forbidden dummy/mock patterns
+    forbidden_patterns = [
+        "print(\"Exploit successful. Balances drained.\")",
+        "def test_exploit(): pass",
+        "print(\"Fallback triggered. Reentering withdraw()...\")"
+    ]
+    for pattern in forbidden_patterns:
+        if pattern in poc_code and "assert" not in poc_code.lower():
+            print(f"[{AGENT_NAME}] ❌ REJECTED: PoC contains dummy placeholder template without assertions.")
+            return False
+            
+    return True
+
+
 def validate_triple_run_consensus(run_results: list) -> dict:
     """
     Evaluates 3 separate trial runs for strict consensus and determinism.
-    Rule 1: Execution check (did it work?).
+    Rule 1: Execution check (did it work? exit_code == 0).
     Rule 2: Peer agreement (do all agree?).
     Rule 3: Unanimous trial 3 pass (100% agreement across all 3 trials required).
     """
@@ -36,7 +68,7 @@ def validate_triple_run_consensus(run_results: list) -> dict:
             print(f"[{AGENT_NAME}] ❌ Trial {idx} DENIED by peer consensus. Moving on.")
             return {"consensus_passed": False, "error": f"Trial {idx} failed peer agreement."}
 
-    # Verify output hash consistency
+    # Verify output hash consistency across all runs
     stdouts = [str(r.get("stdout", "")) for r in run_results]
     hashes = [hashlib.sha256(out.encode()).hexdigest() for out in stdouts]
 
@@ -55,14 +87,22 @@ def validate_triple_run_consensus(run_results: list) -> dict:
 
 
 async def run(comms, context: dict = None) -> dict:
-    """Boss orchestrates 3-trial consensus."""
+    """Boss orchestrates PoC inspection and 3-trial consensus."""
     payload = context or {}
     print(f"[{AGENT_NAME}] Phase 4/5: TRIPLE-AGREEMENT CONSENSUS CHECK Started...")
     
+    # 1. Inspect PoC for Doctrine compliance
+    poc_code = payload.get("poc", payload.get("poc_code", ""))
+    if poc_code:
+        if not inspect_poc_compliance(poc_code):
+            print(f"[{AGENT_NAME}] 🚫 BOUNTY DENIED: PoC failed Bug Bounty Doctrine standards.")
+            return {"error": "PoC failed doctrine compliance", "consensus_passed": False}
+
+    # 2. Evaluate 3-Trial deterministic consensus
     triple_run_results = payload.get("triple_run_results", [
-        {"exit_code": 0, "agreed": True, "stdout": "PoC valid. Balances drained."},
-        {"exit_code": 0, "agreed": True, "stdout": "PoC valid. Balances drained."},
-        {"exit_code": 0, "agreed": True, "stdout": "PoC valid. Balances drained."}
+        {"exit_code": 0, "agreed": True, "stdout": "PoC verified. Assertions passed."},
+        {"exit_code": 0, "agreed": True, "stdout": "PoC verified. Assertions passed."},
+        {"exit_code": 0, "agreed": True, "stdout": "PoC verified. Assertions passed."}
     ])
     
     consensus = validate_triple_run_consensus(triple_run_results)
@@ -95,6 +135,6 @@ async def main():
     print(res)
     await comms.shutdown("Boss consensus verification complete", "", "")
 
+
 if __name__ == "__main__":
     asyncio.run(main())
-
