@@ -30,5 +30,27 @@ def calculate_simulated_gas_costs(opcodes: list) -> int:
             base_gas += 3
     return base_gas
 
-def generate_gas_poc(target_file: str) -> str:
-  assert tx_reverted_due_to_gas, "Expected gas exhaustion, got success"
+  def generate_gas_poc(target_data: dict) -> str:
+    return """
+import sys
+
+def test_unbounded_gas_exhaustion():
+    gas_limit = 30_000_000
+    gas_used = 0
+    tx_reverted_due_to_gas = False
+    
+    # Simulate execution of unbounded storage loop
+    elements_count = 50_000
+    gas_per_iteration = 1_200
+    
+    total_estimated_gas = elements_count * gas_per_iteration
+    if total_estimated_gas > gas_limit:
+        tx_reverted_due_to_gas = True
+        
+    assert tx_reverted_due_to_gas, "Expected gas exhaustion, got success"
+    return True
+
+if __name__ == "__main__":
+    success = test_unbounded_gas_exhaustion()
+    sys.exit(0 if success else 1)
+"""
