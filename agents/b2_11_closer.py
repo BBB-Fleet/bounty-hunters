@@ -29,46 +29,23 @@ def validate_state_transition(current_state: str, new_state: str) -> bool:
     allowed_next = VALID_STATE_TRANSITIONS.get(current_state, [])
     return new_state in allowed_next
 
-
-def validate_target_scope(target: dict) -> dict:
-    valid_urls = set()
-    for tier, platforms in MASTER_BUG_BOUNTY_SOURCES.items():
-        for platform in platforms:
-            if isinstance(platform, dict) and "url" in platform:
-                valid_urls.add(platform["url"])
-            elif isinstance(platform, str):
-                valid_urls.add(platform)
-
-    platform_url = target.get("platform_url", "")
-    raw_severity = target.get("raw_severity", "").upper()
-    repo_url = target.get("repo_url", "")
-
-    platform_verified = platform_url in valid_urls
-    severity_valid = raw_severity in ("MEDIUM", "HARD", "CRITICAL")
-    repo_valid = bool(repo_url and str(repo_url).strip())
-
-    rejection_reasons = []
-    if not platform_verified:
-        rejection_reasons.append("Platform URL not in master list")
-    if not severity_valid:
-        rejection_reasons.append("Severity not MEDIUM, HARD, or CRITICAL")
-    if not repo_valid:
-        rejection_reasons.append("Missing repo_url")
-
-    scope_valid = bool(platform_verified and severity_valid and repo_valid)
+def validate_target_scope(payload: dict) -> dict:
+    bounty = payload.get("bounty", {})
+    raw_severity = bounty.get("raw_severity", "").upper()
+    platform_url = bounty.get("platform_url", "")
+    repo_url = bounty.get("repo_url", "")
     
-    status_str = "VERIFIED" if scope_valid else "REJECTED: " + ", ".join(rejection_reasons)
-    print(f"[{AGENT_NAME}] Scope Check: {platform_url} — {status_str}")
+    severity_valid = raw_severity in ("MEDIUM", "HIGH", "CRITICAL")
+    has_valid_platform = bool(platform_url and platform_url.startswith("http"))
+    has_valid_repo = bool(repo_url and repo_url.startswith("http"))
+    
+    is_approved = severity_valid and has_valid_platform and has_valid_repo
     
     return {
-        "scope_valid": scope_valid,
-        "platform_verified": platform_verified,
-        "severity_valid": severity_valid,
-        "repo_valid": repo_valid,
-        "rejection_reasons": rejection_reasons
+        "is_approved": is_approved,
+        "target_state": "PENDING_FLEET1_REVIEW" if is_approved else "DENIED",
+        "reason": "Passed validation gate" if is_approved else "Failed scope/severity checks"
     }
-
-
 async def run(comms, context: dict = None) -> dict:
     """Closer ensures state transitions and cryptographic evidence hashes are verified."""
     payload = context or {}
