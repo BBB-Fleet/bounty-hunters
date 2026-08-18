@@ -24,20 +24,21 @@ from core.bounty_shared_config import (
 )
 
 # ─── Agent Imports (ALL 12 Agents) ──────────────────────────────────────
-from agents.b2_1_scanner import run as run_b2_scanner           # Agent 1:  Scanner
-from agents.b2_2_accountant import run as run_b2_accountant     # Agent 2:  Accountant
-from agents.b2_3_bridge import run as run_b2_bridge             # Agent 3:  Bridge Specialist
-from agents.b2_4_lender import run as run_b2_lender             # Agent 4:  Lender Specialist
-from agents.b2_5_gas_requester import run as run_b2_gas         # Agent 5:  Gas Requester
-from agents.b2_6_solana_ghost import run as run_b2_solana       # Agent 6:  Solana Ghost
-from agents.b2_7_minter import run as run_b2_minter             # Agent 7:  Minter Specialist
-from agents.b2_8_watchdog import run as run_b2_watchdog         # Agent 8:  Watchdog
-from agents.b2_9_broadcaster import run as run_b2_broadcaster   # Agent 9:  Broadcaster
-from agents.b2_10_boss import run as run_b2_boss                # Agent 10: Boss
-from agents.b2_11_closer import run as run_b2_closer            # Agent 11: Closer
-from agents.b2_12_evidence import run as run_b2_evidence        # Agent 12: Evidence
+from agents.agent_1_scanner import run as run_b2_scanner
+from agents.agent_2_accountant import run as run_b2_accountant
+from agents.agent_3_bridge import run as run_b2_bridge
+from agents.agent_4_lender import run as run_b2_lender
+from agents.agent_5_gas_requester import run as run_b2_gas
+from agents.agent_6_solana_ghost import run as run_b2_solana
+from agents.agent_7_minter import run as run_b2_minter
+from agents.agent_8_watchdog import run as run_b2_watchdog
+from agents.agent_9_broadcaster import run as run_b2_broadcaster
+from agents.agent_10_boss import run as run_b2_boss
+from agents.agent_11_closer import run as run_b2_closer
+from agents.agent_12_evidence import run as run_b2_evidence
 
 from core.bounty_comms import BountyComms
+
 
 # ─── Specialist Routing ─────────────────────────────────────────────────
 SPECIALIST_RUNNERS = {
