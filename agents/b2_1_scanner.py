@@ -17,92 +17,39 @@ AGENT_ID = 1
 AGENT_NAME = "B2 Scanner"
 
 # Real Program Catalog mapped to live Web3 protocols
-REAL_PROGRAM_CATALOG = [
-    {
-        "platform": "immunefi",
-        "name": "Immunefi",
-        "url": "https://immunefi.com",
-        "title": "[Immunefi] Euler Finance Vault Liquidation Reentrancy",
-        "bounty_type": "smart_contract_audit",
-        "severity": "CRITICAL",
-        "payout": 150000,
-        "repo_url": "https://github.com/euler-xyz/euler-vault-kit"
-    },
-    {
-        "platform": "sherlock",
-        "name": "Sherlock",
-        "url": "https://sherlock.xyz",
-        "title": "[Sherlock] Biconomy ERC-4337 Paymaster Signature Bypass",
-        "bounty_type": "smart_contract_audit",
-        "severity": "CRITICAL",
-        "payout": 110000,
-        "repo_url": "https://github.com/bcnmy/scw-contracts"
-    },
-    {
-        "platform": "code4rena",
-        "name": "Code4rena",
-        "url": "https://code4rena.com",
-        "title": "[Code4rena] Uniswap Universal Router Permit2 Allowance Flaw",
-        "bounty_type": "defi_vulnerability",
-        "severity": "CRITICAL",
-        "payout": 85000,
-        "repo_url": "https://github.com/Uniswap/universal-router"
-    },
-    {
-        "platform": "disclose",
-        "name": "disclose.io",
-        "url": "https://disclose.io",
-        "title": "[disclose.io] Axelar Cross-Chain Message Signature Replay",
-        "bounty_type": "cross_chain_bridge",
-        "severity": "CRITICAL",
-        "payout": 120000,
-        "repo_url": "https://github.com/axelarnetwork/axelar-cgp-solidity"
-    }
-]
-
-
-async def fetch_source_feed(session: aiohttp.ClientSession, idx: int) -> dict:
-    """Returns structured target objects matching real Web3 protocols."""
-    program = REAL_PROGRAM_CATALOG[idx % len(REAL_PROGRAM_CATALOG)]
-    
-    ts_stamp = datetime.utcnow().strftime("%Y%m%d%H%M")
-    rand_hex = f"{random.randint(1000, 9999):04x}"
-    clean_src = program["platform"].upper()
-    
-    review_id = f"REV-{clean_src}-{ts_stamp}-{idx+1:02d}-{rand_hex}"
-    date_suffix = datetime.utcnow().strftime("%Y%m%d")
-
-    return {
-        "review_id": review_id,
-        "bounty_id": f"{clean_src}-{date_suffix}-{idx+1:02d}",
-        "title": program["title"],
-        "bounty_title": program["title"],
-        "platform": program["platform"],
-        "bounty_platform": program["platform"],
-        "platform_url": program["url"],
-        "bounty_url": program["url"],
-        "source_tier": "Web3 Platform",
-        "bounty_type": program["bounty_type"],
-        "vulnerability_type": program["bounty_type"],
-        "repo_url": program["repo_url"],
-        "commit_hash": f"a1b2c3d4e5f{idx:x}",
-        "bounty_size_usd": program["payout"],
-        "estimated_payout": program["payout"],
-        "raw_severity": program["severity"],
-        "severity": program["severity"],
-        "ai_friendliness": 5,
-        "discovered_at": datetime.utcnow().isoformat()
-    }
-
+Per-Platform scrapers
+# URLs in MASTER_BUG_BOUNTY_SOURCES
+    "reward_info" ...,
+    "scope": ..., 
+    "review_id": ...,
+    "bounty_id": ...,
+    "title": program_name,
+    "bounty_title": program_name,
+    "platform": platform_key,
+    "bounty_platform": platform_key,
+    "platform_url": url,
+    "bounty_url": url,
+    "source_tier": tier_name,
+    "bounty_type": inferred_type,
+    "vulnerability_type": inferred_type,
+    "repo_url": repo_url,
+    "commit_hash": "...",
+    "bounty_size_usd": reward_value,
+    "estimated_payout": reward_value,
+    "raw_severity": severity,
+    "severity": severity,
+    "ai_friendliness": score,
+    "discovered_at": datetime.utcnow().isoformat(),
+    "state": "DISCOVERED",
+    "priority_score": <computed>
+}
 
 async def scrape_master_sources() -> list:
     """Scrapes structured targets matching real Web3 protocols."""
-    scraped_bounties = []
-    async with aiohttp.ClientSession() as session:
-        tasks = [fetch_source_feed(session, i) for i in range(16)]
-        scraped_bounties = await asyncio.gather(*tasks)
-    return list(scraped_bounties)
-
+         all_bounties = await scrape_all_sources()
+         scored = sorted(all_bounties, key=lambda x: x["priority_score"], reverse=True)
+    return scored[:17]
+     
 
 def calculate_priority_score(bounty: dict) -> float:
     score = bounty["bounty_size_usd"] * 0.01
