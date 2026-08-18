@@ -18,25 +18,42 @@ BUG_BOUNTY_DOCTRINE = {
     "rule": "Every finding must provide reproducible proof; dummy placeholder scripts are rejected."
 }
 
+def inspect_poc_compliance(poc_code: str) -> tuple:
+    if "assert " not in poc_code and "assertTrue(" not in poc_code:
+        return False, "PoC contains no assert statements (doctrine violation)"
+    
+    lines = [line.strip() for line in poc_code.splitlines() if line.strip() and not line.strip().startswith("#")]
+    print_lines = [line for line in lines if line.startswith("print(")]
+    if len(print_lines) > 0 and len(lines) <= len(print_lines) + 2:
+        return False, "PoC only prints output without state validation"
+        
+    return True, "Compliant"
 
-def inspect_poc_compliance(poc_code: str) -> bool:
-    """Enforces Doctrine rule: Rejects PoCs that are merely print-statement placeholders."""
-    if not poc_code or not str(poc_code).strip():
-        print(f"[{AGENT_NAME}] ❌ REJECTED: PoC code is empty.")
-        return False
-
-    forbidden_patterns = [
-        "print(\"Exploit successful. Balances drained.\")",
-        "def test_exploit(): pass",
-        "print(\"Fallback triggered. Reentering withdraw()...\")"
-    ]
-    for pattern in forbidden_patterns:
-        if pattern in poc_code and "assert" not in poc_code.lower():
-            print(f"[{AGENT_NAME}] ❌ REJECTED: PoC contains dummy placeholder template without assertions.")
-            return False
-            
-    return True
-
+def evaluate_consensus(payload: dict) -> dict:
+    if "triple_run_results" not in payload:
+        return {"consensus_passed": False, "error": "Missing triple_run_results from Watchdog"}
+        
+    triple_run_results = payload["triple_run_results"]
+    if len(triple_run_results) != 3:
+        return {"consensus_passed": False, "error": f"Expected 3 trials, got {len(triple_run_results)}"}
+        
+    all_passed = all(run.get("exit_code") == 0 and run.get("agreed", False) for run in triple_run_results)
+    if not all_passed:
+        return {"consensus_passed": False, "error": "PoC execution failed during triple-run consensus"}
+        
+    poc_code = payload.get("poc_code", "")
+    is_compliant, compliance_reason = inspect_poc_compliance(poc_code)
+    if not is_compliant:
+        return {"consensus_passed": False, "error": compliance_reason}
+        
+    verified_hash = hashlib.sha256(json.dumps(triple_run_results, sort_keys=True).encode()).hexdigest()
+    
+    return {
+        "consensus_passed": True,
+        "trials": 3,
+        "verified_hash": verified_hash,
+        "verdict": "APPROVED"
+    }
 
 def validate_triple_run_consensus(run_results: list) -> dict:
     """Evaluates 3 separate trial runs for strict consensus and determinism."""
