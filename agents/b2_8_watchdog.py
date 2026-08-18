@@ -54,20 +54,32 @@ def initialize_isolated_sandbox(repo_url: str) -> tuple[str, str]:
     
     return sandbox_path, build_proof_hash
 
-def verify_poc_execution(sandbox_path: str, poc_script: str) -> dict:
-    """
-    Simulates executing the specialist PoC script inside the isolated sandbox.
-    Verifies that zero data leaks out of the sandbox container.
-    """
-    print(f"[{AGENT_NAME}] 🧪 Executing Specialist PoC inside isolated sandbox {sandbox_path}...")
+def verify_poc_execution(payload: dict) -> dict:
+    poc_script = payload.get("poc", "")
+    sandbox_path = payload.get("sandbox_path", "/tmp/sandbox")
+    os.makedirs(sandbox_path, exist_ok=True)
     
-    # Simulate execution check inside sandbox
+    poc_file_path = os.path.join(sandbox_path, "exploit_poc.py")
+    with open(poc_file_path, "w") as f:
+        f.write(poc_script)
+        
+    start_time = time.time()
+    result = subprocess.run(
+        [sys.executable, poc_file_path],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        cwd=sandbox_path
+    )
+    execution_time_ms = (time.time() - start_time) * 1000
+    
     return {
-        "exit_code": 0,
-        "stdout": f"PoC executed successfully in {sandbox_path}.\nVulnerability demonstrated cleanly.\nZero external network leaks detected.",
-        "stderr": "",
-        "execution_time_ms": 320,
-        "firewall_leak_detected": False
+        "exit_code": result.returncode,
+        "stdout": result.stdout,
+        "stderr": result.stderr,
+        "execution_time_ms": round(execution_time_ms, 2),
+        "firewall_leak_detected": False,
+        "agreed": result.returncode == 0
     }
 
 def destroy_isolated_sandbox(sandbox_path: str) -> tuple[bool, str]:
