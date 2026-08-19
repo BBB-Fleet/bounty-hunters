@@ -53,3 +53,56 @@ if __name__ == "__main__":
     success = test_gas_dos_exploit()
     sys.exit(0 if success else 1)
 """
+
+async def run(comms=None, context: dict = None) -> dict:
+    """
+    Fleet 2 Standard Agent Entrypoint.
+    Executes Phase 3 Gas Optimization analysis and generates PoC.
+    """
+    print(f"[{AGENT_NAME}] Phase 3: GAS SPECIALIST analysis started...")
+    
+    payload = context or {}
+    repo_url = payload.get("repo_url", "")
+    bounty_title = payload.get("bounty_title", "Unknown")
+    
+    # Simulate gas cost calculation
+    opcodes = ["SSTORE", "SLOAD", "CALL", "SLOAD"]
+    gas_cost = calculate_simulated_gas_costs(opcodes)
+    
+    # Generate PoC
+    poc_code = generate_gas_poc(repo_url)
+    
+    result = {
+        "agent_id": AGENT_ID,
+        "agent_name": AGENT_NAME,
+        "gas_cost_simulated": gas_cost,
+        "is_dos_viable": gas_cost > 30000000,
+        "poc_code": poc_code,
+        "draft": f"Gas optimization and DoS analysis for {bounty_title}",
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    
+    if comms:
+        await comms.save_pipeline_log(
+            "phase_3_gas",
+            f"Gas specialist analysis complete. Simulated gas cost: {gas_cost}"
+        )
+    
+    print(f"[{AGENT_NAME}] Gas analysis complete.")
+    return result
+
+async def main():
+    from core.bounty_comms import BountyComms
+    comms = BountyComms(AGENT_ID, AGENT_NAME)
+    await comms.startup()
+    
+    context = {
+        "bounty_title": "Test Gas Vulnerability",
+        "repo_url": "https://github.com/test/gas-vulnerable",
+    }
+    result = await run(comms, context)
+    print(f"  -> Gas cost simulated: {result.get('gas_cost_simulated')} units")
+    await comms.shutdown()
+
+if __name__ == "__main__":
+    asyncio.run(main())
