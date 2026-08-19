@@ -70,15 +70,22 @@ def select_specialist_agent(bounty: dict):
 
 # ─── Helper: Normalize Scanner Output ───────────────────────────────────
 
-def normalize_scanner_output(scanner_result: dict) -> list[dict]:
+def normalize_scanner_output(scanner_result) -> list[dict]:
     """
     Takes Agent 1 (Scanner) output and returns a list of bounty dicts
     in a unified schema for downstream agents.
+    Handles both dict and list returns from scanner.
     """
     if not scanner_result:
         return []
 
-    bounties = scanner_result.get("bounties") or scanner_result.get("results") or []
+    # If scanner_result is already a list, use it directly
+    if isinstance(scanner_result, list):
+        bounties = scanner_result
+    else:
+        # Otherwise, extract bounties from dict
+        bounties = scanner_result.get("bounties") or scanner_result.get("results") or []
+    
     if isinstance(bounties, dict):
         bounties = [bounties]
 
