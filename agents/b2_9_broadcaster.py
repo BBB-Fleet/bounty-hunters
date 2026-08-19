@@ -1,5 +1,4 @@
 """
-"""
 BBB Fleet 2: Bounty Hunters — Agent 9: Broadcaster (Platform Submission Formatter)
 ==================================================================================
 Phase 6 agent. Platform Submission Formatter.
@@ -99,3 +98,106 @@ The following PoC was executed 3 separate times in an isolated Watchdog sandbox 
 
 ````python
 {poc}
+````
+
+---
+
+## 4. Remediation
+Refer to the specialist analysis for detailed remediation steps.
+"""
+    
+    # 2. Code4rena / Sherlock Format
+    elif "code4rena" in platform or "sherlock" in platform:
+        return f"""## {title}
+
+**Severity:** {severity}  
+**Target:** {repo_url}
+
+### Vulnerability Detail
+{draft}
+
+### Proof of Concept
+````python
+{poc}
+````
+
+### Mitigation
+Apply the recommended fixes as detailed in the specialist report.
+"""
+    
+    # 3. Default format
+    else:
+        return f"""# {title}
+
+**Platform:** {platform}  
+**Severity:** {severity}  
+**Bounty ID:** {bounty_id}  
+**Repository:** {repo_url}
+
+## Summary
+{draft}
+
+## Proof of Concept
+````python
+{poc}
+````
+
+## Evidence
+- Bundle: {bundle_id}
+- Hash: {evidence_hash[:16]}...
+- Verified: Yes
+"""
+
+
+async def run(comms=None, context: dict = None) -> dict:
+    """
+    Fleet 2 Standard Agent Entrypoint.
+    Formats bounty submission for platform publication.
+    """
+    print(f"[{AGENT_NAME}] Phase 6: PLATFORM SUBMISSION FORMATTING started...")
+    
+    payload = context or {}
+    bounty_title = payload.get("bounty_title", "Security Finding")
+    platform = payload.get("platform", "immunefi")
+    
+    # Format submission
+    formatted_submission = format_platform_submission(payload)
+    
+    result = {
+        "agent_id": AGENT_ID,
+        "agent_name": AGENT_NAME,
+        "bounty_title": bounty_title,
+        "platform": platform,
+        "formatted_submission": formatted_submission,
+        "submission_ready": True,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    
+    if comms:
+        await comms.save_pipeline_log(
+            "phase_6_broadcaster",
+            f"Formatted submission for {platform} platform"
+        )
+    
+    print(f"[{AGENT_NAME}] Submission formatting complete.")
+    return result
+
+async def main():
+    from core.bounty_comms import BountyComms
+    comms = BountyComms(AGENT_ID, AGENT_NAME)
+    await comms.startup()
+    
+    context = {
+        "bounty_title": "Test Vulnerability",
+        "platform": "immunefi",
+        "repo_url": "https://github.com/test/repo",
+        "severity": "CRITICAL",
+        "draft": "Critical vulnerability found",
+        "poc_code": "print('exploit')",
+    }
+    result = await run(comms, context)
+    print(f"  -> Submission formatted for {result.get('platform')}")
+    await comms.shutdown()
+
+if __name__ == "__main__":
+    asyncio.run(main())
