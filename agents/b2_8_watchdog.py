@@ -15,6 +15,9 @@ import shutil
 import tempfile
 import uuid
 import hashlib
+import subprocess
+import sys
+import time
 from datetime import datetime
 
 AGENT_ID = 8
@@ -54,23 +57,31 @@ def initialize_isolated_sandbox(repo_url: str) -> tuple[str, str]:
     
     return sandbox_path, build_proof_hash
 
-def verify_poc_execution(payload: dict) -> dict:
-    poc_script = payload.get("poc", "")
-    sandbox_path = payload.get("sandbox_path", "/tmp/sandbox")
-    os.makedirs(sandbox_path, exist_ok=True)
-    
+def verify_poc_execution(sandbox_path: str, poc_script: str) -> dict:
+    """Execute PoC in isolated sandbox with timeout."""
     poc_file_path = os.path.join(sandbox_path, "exploit_poc.py")
     with open(poc_file_path, "w") as f:
         f.write(poc_script)
         
     start_time = time.time()
-    result = subprocess.run(
-        [sys.executable, poc_file_path],
-        capture_output=True,
-        text=True,
-        timeout=30,
-        cwd=sandbox_path
-    )
+    try:
+        result = subprocess.run(
+            [sys.executable, poc_file_path],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd=sandbox_path
+        )
+    except subprocess.TimeoutExpired:
+        return {
+            "exit_code": 124,
+            "stdout": "",
+            "stderr": "Execution timeout",
+            "execution_time_ms": 30000,
+            "firewall_leak_detected": False,
+            "agreed": False
+        }
+    
     execution_time_ms = (time.time() - start_time) * 1000
     
     return {
@@ -107,7 +118,7 @@ def destroy_isolated_sandbox(sandbox_path: str) -> tuple[bool, str]:
     return True, destruction_proof_hash
 
 
-async def run(comms, context: dict = None) -> dict:
+async def run(comms=None, context: dict = None) -> dict:
     """Watchdog lifecycle: Validate Scope -> Isolate Sandbox -> Guard Execution -> Wipe Sandbox"""
     payload = context or {}
     print(f"[{AGENT_NAME}] Phase 4: SANDBOX CREATION, FIREWALL & AUDIT Started...")
@@ -160,4 +171,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
