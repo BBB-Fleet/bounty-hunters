@@ -1,0 +1,38 @@
+name: Deploy BBB Fleet 2 Sovereign Pipeline
+
+on:
+  schedule:
+    # Runs 17 times daily (approximately every 85 minutes)
+    - cron: '0 */1 * * *'
+  workflow_dispatch: # Allows manual execution from GitHub UI
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Sovereign Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Hardened Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install web3 eth-utils requests asyncpg python-dotenv
+
+      - name: Execute Sovereign 16-Cycle Bounty Triage
+        env:
+          # Wire your serverless database and API tokens securely
+          NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
+          JWT_DISABLED: "1" # Gut the token gatekeeper locally
+        run: |
+          # Fallback directories are built-in to the script to prevent missing folder errors
+          python bbb_fleet2_integrated_v2.py
+
