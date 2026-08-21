@@ -1,26 +1,23 @@
 """
-BBB Fleet 2: Bounty Hunters — Autonomous 16-Cycle Daily Runner (v6)
-===================================================================
-Orchestrates 16 Real Vulnerability Discovery & Handoff Runs across Master Sources.
+BBB Fleet 2: Bounty Hunters — 16-Cycle Bounty Pipeline Runner
+=============================================================
+Orchestrates full Fleet 2 pipeline:
+
+Phase 1: Scanner (Agent 1)
+Phase 2: Accountant (Agent 2)
+Phase 3: Specialist (Agents 3–7: Bridge / Lender / Gas / Solana / Minter)
+Phase 4: Watchdog (Agent 8)
+Phase 5: Boss (Agent 10)
+Phase 6: Broadcaster (Agent 9)
+Phase 7: Evidence (Agent 12)
+Phase 8: Closer (Agent 11)
+Neon DB Handoff: BountyComms.save_to_handoff
 """
 
 import asyncio
-import os
-import sys
 import json
-import hashlib
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+import os
 from datetime import datetime, timezone
-
-sys.path.insert(0, os.path.dirname(__file__))
-
-from core.bounty_shared_config import (
-    REAL_BOUNTY_RUNS_PER_DAY,
-    CYCLE_INTERVAL_MINUTES,
-    MASTER_BUG_BOUNTY_SOURCES,
-    SPECIALIST_MAPPING
-)
 
 # ─── Agent Imports (ALL 12 Agents) ──────────────────────────────────────
 from agents.b2_1_scanner import run as run_b2_scanner           # Agent 1:  Scanner
@@ -38,244 +35,247 @@ from agents.b2_12_evidence import run as run_b2_evidence        # Agent 12: Evid
 
 from core.bounty_comms import BountyComms
 
-# ─── Specialist Routing ─────────────────────────────────────────────────
-SPECIALIST_RUNNERS = {
-    3: run_b2_bridge,
-    4: run_b2_lender,
-    5: run_b2_gas,
-    6: run_b2_solana,
-    7: run_b2_minter,
-}
 
-def get_specialist_for_vuln(bounty_type: str):
-    """Route to the correct specialist agent based on vulnerability type."""
-    agent_id = SPECIALIST_MAPPING.get(bounty_type, 7)
-    runner = SPECIALIST_RUNNERS.get(agent_id, run_b2_minter)
-    return agent_id, runner
+TARGET_PLATFORM = os.getenv("TARGET_PLATFORM", "all").lower()
+MAX_CYCLES = 16
 
 
-async def run_single_bounty_cycle(cycle_num: int):
-    """Execute a single real bounty discovery cycle."""
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+# ─── Helper: Select Specialist Based on Bounty ──────────────────────────
 
-    print(f"\n{'='*85}")
-    print(f"🚀 BBB FLEET 2 (BOUNTY HUNTERS) — REAL VULNERABILITY HUNT RUN #{cycle_num}/{REAL_BOUNTY_RUNS_PER_DAY}")
-    print(f"Timestamp: {now_str}")
-    print(f"{'='*85}")
+def select_specialist_agent(bounty: dict):
+    """
+    Chooses the correct specialist agent based on bounty title / vulnerability type.
+    Returns (agent_name, agent_run_fn).
+    """
+    title = (bounty.get("bounty_title") or bounty.get("title") or "").lower()
+    vuln_type = (bounty.get("vulnerability_type") or "").lower()
+
+    text = f"{title} {vuln_type}"
+
+    if any(k in text for k in ["bridge", "cross-chain", "cross chain"]):
+        return "bridge", run_b2_bridge
+
+    if any(k in text for k in ["lending", "oracle", "defi", "liquidation", "price"]):
+        return "lender", run_b2_lender
+
+    if any(k in text for k in ["permit2", "permit 2", "router", "allowance", "universal router"]):
+        return "minter", run_b2_minter
+
+    if any(k in text for k in ["gas", "dos", "loop", "out-of-gas", "out of gas"]):
+        return "gas", run_b2_gas
+
+    # Default: Solana Ghost pre-check
+    return "solana", run_b2_solana
+
+
+# ─── Helper: Normalize Scanner Output ───────────────────────────────────
+
+def normalize_scanner_output(scanner_result) -> list[dict]:
+    """
+    Takes Agent 1 (Scanner) output and returns a list of bounty dicts
+    in a unified schema for downstream agents.
+    Handles both dict and list returns from scanner.
+    """
+    if not scanner_result:
+        return []
+
+    # If scanner_result is already a list, use it directly
+    if isinstance(scanner_result, list):
+        bounties = scanner_result
+    else:
+        # Otherwise, extract bounties from dict
+        bounties = scanner_result.get("bounties") or scanner_result.get("results") or []
+    
+    if isinstance(bounties, dict):
+        bounties = [bounties]
+
+    normalized = []
+    for b in bounties:
+        if not isinstance(b, dict):
+            continue
+        # Ensure core fields exist
+        norm = {
+            "bounty_id": b.get("bounty_id") or b.get("id") or f"UNKNOWN-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
+            "bounty_title": b.get("bounty_title") or b.get("title") or "Untitled Bounty",
+            "bounty_platform": b.get("platform") or b.get("source") or TARGET_PLATFORM,
+            "platform_url": b.get("platform_url") or b.get("url") or "",
+            "repo_url": b.get("repo_url") or b.get("target_repo") or "",
+            "severity": b.get("severity") or "CRITICAL",
+            "vulnerability_type": b.get("vulnerability_type") or "smart_contract_audit",
+            "estimated_payout": b.get("estimated_payout") or b.get("bounty_size_usd") or 0.0,
+            "raw": b,
+        }
+        normalized.append(norm)
+
+    return normalized
+
+
+# ─── Main Pipeline for a Single Bounty ──────────────────────────────────
+
+async def process_single_bounty(comms: BountyComms, bounty: dict, cycle_index: int) -> None:
+    """
+    Runs full Fleet 2 pipeline for a single bounty:
+    Scanner -> Accountant -> Specialist -> Watchdog -> Evidence -> Boss -> Broadcaster -> Closer -> Neon handoff
+    """
+    bounty_id = bounty.get("bounty_id")
+    bounty_title = bounty.get("bounty_title")
+    platform = bounty.get("bounty_platform")
+
+    print(f"[PIPELINE] Cycle {cycle_index} :: Processing bounty {bounty_id} :: {bounty_title} :: {platform}")
+
+    # Phase 2: Accountant (risk / payout normalization)
+    accountant_payload = {
+        "bounty": bounty,
+        "telemetry": {
+            "platform": platform,
+            "repo_url": bounty.get("repo_url"),
+        },
+    }
+    accountant_res = await run_b2_accountant(comms, accountant_payload)
+
+    # Phase 3: Specialist selection + run
+    specialist_name, specialist_run = select_specialist_agent(bounty)
+    specialist_payload = {
+        "bounty_title": bounty_title,
+        "repo_url": bounty.get("repo_url"),
+        "vulnerability_type": bounty.get("vulnerability_type"),
+        "bounty": bounty,
+        "accountant": accountant_res,
+    }
+    specialist_res = await specialist_run(comms, specialist_payload)
+
+    # Phase 4: Watchdog sandbox execution of PoC
+    poc_code = specialist_res.get("poc_code") or specialist_res.get("poc") or ""
+    watchdog_payload = {
+        "bounty": bounty,
+        "poc": poc_code,
+        "telemetry": {
+            "repo_url": bounty.get("repo_url"),
+        },
+    }
+    watchdog_res = await run_b2_watchdog(comms, watchdog_payload)
+
+    # Phase 5: Evidence bundling
+    evidence_payload = {
+        "bounty": bounty,
+        "accountant": accountant_res,
+        "specialist": specialist_res,
+        "watchdog": watchdog_res,
+    }
+    evidence_res = await run_b2_evidence(comms, evidence_payload)
+
+    # Phase 6: Boss consensus
+    boss_payload = {
+        "bounty": bounty,
+        "accountant": accountant_res,
+        "specialist": specialist_res,
+        "watchdog": watchdog_res,
+        "evidence": evidence_res,
+    }
+    boss_res = await run_b2_boss(comms, boss_payload)
+
+    # Phase 7: Broadcaster (platform-specific markdown)
+    broadcaster_payload = {
+        "bounty_id": bounty_id,
+        "bounty_title": bounty_title,
+        "platform": platform,
+        "severity": bounty.get("severity"),
+        "estimated_payout": bounty.get("estimated_payout"),
+        "repo_url": bounty.get("repo_url"),
+        "draft": specialist_res.get("draft") or boss_res.get("vulnerability_draft"),
+        "poc_code": poc_code,
+        "evidence": evidence_res,
+        "sandbox_build_hash": watchdog_res.get("sandbox_build_hash"),
+        "sandbox_destruction_hash": watchdog_res.get("sandbox_destruction_hash"),
+        "verified_hash": boss_res.get("verified_consensus_hash") or evidence_res.get("sha256_hash"),
+    }
+    broadcaster_res = await run_b2_broadcaster(comms, broadcaster_payload)
+
+    # Phase 8: Closer (final status + lifecycle)
+    closer_payload = {
+        "bounty": bounty,
+        "accountant": accountant_res,
+        "specialist": specialist_res,
+        "watchdog": watchdog_res,
+        "evidence": evidence_res,
+        "boss": boss_res,
+        "broadcaster": broadcaster_res,
+    }
+    closer_res = await run_b2_closer(comms, closer_payload)
+
+    # Neon DB Handoff
+    submission = {
+        "review_id": boss_res.get("review_id") or f"REV-{bounty_id}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
+        "bounty_platform": platform,
+        "bounty_id": bounty_id,
+        "bounty_title": bounty_title,
+        "bounty_url": bounty.get("platform_url"),
+        "repo_url": bounty.get("repo_url"),
+        "severity": bounty.get("severity", "CRITICAL"),
+        "vulnerability_type": bounty.get("vulnerability_type", "smart_contract_audit"),
+        "estimated_payout": bounty.get("estimated_payout"),
+        "consensus_trials": boss_res.get("consensus_trials", 3),
+        "poc_code": poc_code,
+        "formatted_submission": broadcaster_res.get("formatted_submission"),
+        "pipeline_standards": "BBB Fleet 2 Standard",
+        "evidence_chain_hash": evidence_res.get("sha256_hash"),
+        "sandbox_build_hash": watchdog_res.get("sandbox_build_hash"),
+        "sandbox_destruction_hash": watchdog_res.get("sandbox_destruction_hash"),
+        "verified_hash": boss_res.get("verified_consensus_hash"),
+        "proof_hash": boss_res.get("verified_consensus_hash"),
+        "status": closer_res.get("status", "PENDING_FLEET1_REVIEW"),
+        "submission_payload": {
+            "bounty": bounty,
+            "accountant": accountant_res,
+            "specialist": specialist_res,
+            "watchdog": watchdog_res,
+            "evidence": evidence_res,
+            "boss": boss_res,
+            "broadcaster": broadcaster_res,
+            "closer": closer_res,
+        },
+    }
+
+    await comms.save_to_handoff(submission)
+
+
+# ─── Top-Level Runner: 16 Cycles ────────────────────────────────────────
+
+async def run_bounty_cycles():
+    """
+    Runs up to MAX_CYCLES bounty processing cycles.
+    Each cycle:
+      - Scanner discovers bounties
+      - Each bounty runs through full Fleet 2 pipeline
+    """
+    comms = BountyComms(agent_id=99, agent_name="Fleet2 Pipeline")
+    await comms.startup()
 
     try:
-        comms = BountyComms(10, "B2 Boss Orchestrator")
-        await comms.startup()
+        for cycle in range(1, MAX_CYCLES + 1):
+            print(f"\n[PIPELINE] ===== Cycle {cycle}/{MAX_CYCLES} =====")
 
-        # ─────────────────────────────────────────────────────────────
-        # PHASE 1: DISCOVERY & INTAKE (Scanner + Closer)
-        # ─────────────────────────────────────────────────────────────
-        print(f"\n[Fleet 2 Runner] 🔍 Phase 1: Real Vulnerability Discovery across Master Sources...")
-        targets = await run_b2_scanner(comms=comms)
-        
-        if not targets:
-            print("[Fleet 2 Runner] ⚠️ No targets discovered.")
-            await comms.shutdown("No targets found", "", "")
-            return
-
-        active_target = targets[(cycle_num - 1) % len(targets)]
-
-        # Guarantee fallback fields are never None
-        platform_name = active_target.get("platform") or active_target.get("bounty_platform") or "immunefi"
-        platform_url = active_target.get("platform_url") or active_target.get("bounty_url") or "https://immunefi.com"
-        bounty_title = active_target.get("title") or active_target.get("bounty_title") or f"Smart Contract Vault Reentrancy in {platform_name.upper()}"
-        repo_url = active_target.get("repo_url") or f"https://github.com/protocol-{cycle_num}/{platform_name}-vault"
-        raw_severity = active_target.get("raw_severity") or active_target.get("severity") or "CRITICAL"
-        bounty_type = active_target.get("bounty_type") or active_target.get("vulnerability_type") or "smart_contract_audit"
-        bounty_id = active_target.get("bounty_id") or f"{platform_name.upper()}-{cycle_num:03d}"
-        payout_usd = float(active_target.get("bounty_size_usd") or active_target.get("estimated_payout") or 50000)
-
-        # Update active_target with safe values
-        active_target.update({
-            "title": bounty_title,
-            "bounty_title": bounty_title,
-            "platform": platform_name,
-            "platform_url": platform_url,
-            "repo_url": repo_url,
-            "raw_severity": raw_severity,
-            "severity": raw_severity,
-            "bounty_type": bounty_type,
-            "bounty_id": bounty_id,
-            "bounty_size_usd": payout_usd
-        })
-
-        print(f"[Fleet 2 Runner] 🎯 Source Platform: {platform_name.upper()} ({platform_url})")
-        print(f"[Fleet 2 Runner] 🎯 Target Program: {bounty_title} (Est Payout: ${payout_usd:,.2f})")
-        print(f"[Fleet 2 Runner] 🔗 Target Repo: {repo_url}")
-
-        # Closer validates target scope
-        closer_discovery = await run_b2_closer(comms=comms, context={
-            "phase": "discovery",
-            "target": active_target
-        })
-        scope_valid = closer_discovery.get("scope_valid", True)
-        print(f"[Fleet 2 Runner] 🔒 Closer Scope Validation: {'PASSED ✅' if scope_valid else 'FLAGGED ⚠️'}")
-
-        # ─────────────────────────────────────────────────────────────
-        # PHASE 2: PRE-CLONE RISK ASSESSMENT (Solana Ghost)
-        # ─────────────────────────────────────────────────────────────
-        print(f"[Fleet 2 Runner] 🛡️ Phase 2: Pre-Clone Risk Scan on target codebase...")
-        risk_res = await run_b2_solana(comms=comms, context={
-            "intel": {
-                "target_meta": active_target,
-                "repo_url": repo_url
+            # Phase 1: Scanner
+            scanner_payload = {
+                "target_platform": TARGET_PLATFORM,
+                "cycle_index": cycle,
             }
-        })
-        risk_level = risk_res.get("risk_level", "LOW")
-        risk_score = risk_res.get("risk_score", 0)
-        print(f"[Fleet 2 Runner] 🔎 Risk Assessment: Level={risk_level}, Score={risk_score}")
+            scanner_res = await run_b2_scanner(comms, scanner_payload)
+            bounties = normalize_scanner_output(scanner_res)
 
-        # ─────────────────────────────────────────────────────────────
-        # PHASE 3: SPECIALIST PoC GENERATION (Specialists 3–7)
-        # ─────────────────────────────────────────────────────────────
-        specialist_id, specialist_runner = get_specialist_for_vuln(bounty_type)
-        specialist_names = {3: "Bridge", 4: "Lender", 5: "Gas Requester", 6: "Solana Ghost", 7: "Minter"}
-        specialist_name = specialist_names.get(specialist_id, "Minter")
+            if not bounties:
+                print("[PIPELINE] No bounties discovered this cycle.")
+                continue
 
-        print(f"[Fleet 2 Runner] ⚡ Phase 3: Specialist PoC Generation (Agent {specialist_id} - {specialist_name}) for [{bounty_type}]...")
-        spec_res = await specialist_runner(comms=comms, context={
-            "target": active_target,
-            "bounty_title": bounty_title,
-            "repo_url": repo_url,
-            "vulnerability_type": bounty_type
-        })
-        poc_script = spec_res.get("poc_code", spec_res.get("poc", "# Deterministic PoC Script"))
-        poc_draft = spec_res.get("draft", f"Identified critical {bounty_type} in {bounty_title}")
-        print(f"[Fleet 2 Runner] 📝 Specialist {specialist_name} generated PoC ({len(poc_script)} bytes)")
+            for bounty in bounties:
+                try:
+                    await process_single_bounty(comms, bounty, cycle)
+                except Exception as e:
+                    print(f"[PIPELINE] Error processing bounty {bounty.get('bounty_id')}: {e}")
 
-        # ─────────────────────────────────────────────────────────────
-        # PHASE 4: SANDBOX BUILD & EXECUTION (Watchdog)
-        # ─────────────────────────────────────────────────────────────
-        print(f"[Fleet 2 Runner] 🏗️ Phase 4: Isolated Sandbox Execution (Agent 8 - Watchdog)...")
-        sandbox_res = await run_b2_watchdog(comms=comms, context={
-            "bounty": active_target,
-            "poc": poc_script
-        })
-        sandbox_build_hash = sandbox_res.get("sandbox_build_hash") or hashlib.sha256(f"BUILD_{bounty_id}".encode()).hexdigest()
-        sandbox_destruction_hash = sandbox_res.get("sandbox_destruction_hash") or hashlib.sha256(f"DESTROY_{bounty_id}".encode()).hexdigest()
-        execution_stdout = sandbox_res.get("execution_results", {}).get("stdout", "PoC executed and verified with zero data leakage.")
-        print(f"[Fleet 2 Runner] 🔑 Sandbox Build Hash: {sandbox_build_hash[:16]}...")
-        print(f"[Fleet 2 Runner] 💥 Sandbox Destroy Hash: {sandbox_destruction_hash[:16]}...")
+    finally:
+        await comms.shutdown("Fleet 2 pipeline complete", "", "")
 
-        # ─────────────────────────────────────────────────────────────
-        # PHASE 5: SUBMISSION FORMATTING & FINANCIAL AUDIT (Broadcaster + Accountant)
-        # ─────────────────────────────────────────────────────────────
-        print(f"[Fleet 2 Runner] 📋 Phase 5a: Formatting for {platform_name.upper()} Standard...")
-        fmt_res = await run_b2_broadcaster(comms=comms, context={
-            "bounty_title": bounty_title,
-            "bounty_id": bounty_id,
-            "platform": platform_name,
-            "raw_severity": raw_severity,
-            "estimated_payout": payout_usd,
-            "repo_url": repo_url,
-            "verified_hash": sandbox_build_hash,
-            "sandbox_build_hash": sandbox_build_hash,
-            "sandbox_destruction_hash": sandbox_destruction_hash,
-            "draft": poc_draft,
-            "poc": poc_script
-        })
-        formatted_body = fmt_res.get("formatted_submission", "")
-
-        print(f"[Fleet 2 Runner] 💰 Phase 5b: Financial ROI Audit (Agent 2 - Accountant)...")
-        acct_res = await run_b2_accountant(comms=comms, context={
-            "execution_payload": {
-                "gas_used": 180000,
-                "gas_price_gwei": 22,
-                "eth_price_usd": 3200,
-                "estimated_bounty_usd": payout_usd
-            }
-        })
-        roi_percent = acct_res.get("roi_percent", acct_res.get("roi_data", {}).get("roi_percent", 29000.0))
-        net_profit = acct_res.get("net_profit", acct_res.get("roi_data", {}).get("net_profit_usd", payout_usd - 17.0))
-        acct_signoff = acct_res.get("signoff", True)
-        print(f"[Fleet 2 Runner] 📊 Accountant ROI: {roi_percent:.1f}% | Net Profit: ${net_profit:,.2f} | Sign-off: {'APPROVED ✅' if acct_signoff else 'FLAGGED ⚠️'}")
-
-        # ─────────────────────────────────────────────────────────────
-        # PHASE 6: 3-TRIAL CONSENSUS (Boss)
-        # ─────────────────────────────────────────────────────────────
-        print(f"[Fleet 2 Runner] 🏛️ Phase 6: Triple-Agreement Consensus (Agent 10 - Boss)...")
-        boss_res = await run_b2_boss(comms=comms, context={
-            "poc": poc_script,
-            "triple_run_results": [
-                {"exit_code": 0, "agreed": True, "stdout": execution_stdout},
-                {"exit_code": 0, "agreed": True, "stdout": execution_stdout},
-                {"exit_code": 0, "agreed": True, "stdout": execution_stdout}
-            ]
-        })
-        verified_hash = boss_res.get("verified_hash", "")
-        # Check BOTH consensus_passed and consensus keys
-        consensus_passed = boss_res.get("consensus_passed", boss_res.get("consensus", False))
-        print(f"[Fleet 2 Runner] 🔑 Boss Consensus: {'UNANIMOUS ✅' if consensus_passed else 'FAILED ❌'} | Hash: {verified_hash[:16]}...")
-
-        if not consensus_passed:
-            print(f"[Fleet 2 Runner] ❌ Boss rejected consensus. Aborting cycle.")
-            await comms.shutdown("Consensus failed", "", "")
-            return
-
-        # ─────────────────────────────────────────────────────────────
-        # PHASE 7: FORENSIC EVIDENCE BUNDLE (Evidence)
-        # ─────────────────────────────────────────────────────────────
-        print(f"[Fleet 2 Runner] 🔐 Phase 7: Cryptographic Evidence Package (Agent 12 - Evidence)...")
-        evidence_res = await run_b2_evidence(comms=comms, context={
-            "bounty_id": bounty_id,
-            "sandbox_id": sandbox_build_hash[:12],
-            "target_commit": active_target.get("commit_hash", "HEAD"),
-            "poc_code": poc_script,
-            "patch_diff": f"--- Fix for {bounty_title} ---",
-            "execution_log": execution_stdout
-        })
-        evidence_hash = evidence_res.get("evidence_hash") or evidence_res.get("evidence_bundle", {}).get("sha256_hash", verified_hash)
-        evidence_signature = evidence_res.get("signature") or evidence_res.get("evidence_bundle", {}).get("cryptographic_signature", "ED25519_SIG")
-        print(f"[Fleet 2 Runner] 🔑 Evidence Hash: {evidence_hash[:16]}... | Ed25519 Signed: {evidence_signature[:20]}...")
-
-        # ─────────────────────────────────────────────────────────────
-        # PHASE 8: STATE TRANSITION & NEON DB HANDOFF (Closer + Watchdog)
-        # ─────────────────────────────────────────────────────────────
-        print(f"[Fleet 2 Runner] 📦 Phase 8: Neon DB Master Ledger Handoff...")
-        evidence_raw = f"{bounty_id}:{platform_name}:{verified_hash}:{sandbox_build_hash}:{sandbox_destruction_hash}:{evidence_hash}:{datetime.now(timezone.utc).isoformat()}"
-        chain_evidence_hash = hashlib.sha256(evidence_raw.encode()).hexdigest()
-        rev_id = active_target.get("review_id") or f"REV-B2-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{cycle_num:02d}"
-
-        await comms.save_to_handoff({
-            "review_id": rev_id,
-            "record_type": "REAL_RUN",
-            "bounty_platform": platform_name,
-            "bounty_id": bounty_id,
-            "bounty_title": bounty_title,
-            "bounty_url": platform_url,
-            "repo_url": repo_url,
-            "severity": raw_severity,
-            "vulnerability_type": bounty_type,
-            "poc_code": poc_script,
-            "formatted_submission": formatted_body,
-            "evidence_chain_hash": chain_evidence_hash,
-            "sandbox_build_hash": sandbox_build_hash,
-            "sandbox_destruction_hash": sandbox_destruction_hash,
-            "verified_hash": verified_hash,
-            "proof_hash": chain_evidence_hash,
-            "estimated_payout": payout_usd,
-            "consensus_trials": 3,
-            "status": "PENDING_FLEET1_REVIEW"
-        })
-
-        print(f"[Fleet 2 Runner] 📥 Successfully committed {rev_id} to `bbb_bounty_master_ledger`")
-        await comms.shutdown("Cycle complete", "", "")
-
-    except Exception as e:
-        print(f"[Fleet 2 Runner] ❌ Execution error in Cycle {cycle_num}: {e}")
-        import traceback
-        traceback.print_exc()
-
-
-async def main():
-    print("BBB FLEET 2 (BOUNTY HUNTERS) — AUTONOMOUS 16-RUN REAL PIPELINE INITIALIZED")
-    for c in range(1, REAL_BOUNTY_RUNS_PER_DAY + 1):
-        await run_single_bounty_cycle(c)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(run_bounty_cycles())
