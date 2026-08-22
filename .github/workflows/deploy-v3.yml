@@ -33,4 +33,4 @@ jobs:
           ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
           JWT_DISABLED: "1"
         run: |
-          python bbb_fleet2_integrated_v4.p
+          python bbb_fleet2_integrated_v4.py
