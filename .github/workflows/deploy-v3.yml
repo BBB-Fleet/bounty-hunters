@@ -31,7 +31,6 @@ jobs:
           NEON_CONNECTION_STRING: ${{ secrets.NEON_CONNECTION_STRING }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
-          JWT_DISABLED: "1" # Gut the token gatekeeper locally
+          JWT_DISABLED: "1"
         run: |
-          # Fallback directories are built-in to the script to prevent missing folder errors
-          python bbb_fleet2_integrated_v3.py
+          python bbb_fleet2_integrated_v4.p
